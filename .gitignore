@@ -1,3 +1,4 @@
 ﻿.env
 .env.*
+!.env.example
 mssql-data/
