@@ -1,4 +1,43 @@
 ﻿services:
+  front:
+    image: node:20-slim
+    working_dir: /workspace/cfl-front
+    container_name: cfl-front
+    ports:
+      - "${FRONT_PORT:-3000}:3000"
+    volumes:
+      - ../cfl-front:/workspace/cfl-front
+      - /workspace/cfl-front/node_modules
+    environment:
+      NODE_ENV: "development"
+      NEXT_PUBLIC_API_URL: "http://localhost:${BACK_PORT:-4000}"
+    command: >
+      sh -c "npm install && npm run dev -- --port 3000 --hostname 0.0.0.0"
+    depends_on:
+      - back
+
+  back:
+    image: node:20-slim
+    working_dir: /workspace/cfl-back
+    container_name: cfl-back
+    ports:
+      - "${BACK_PORT:-4000}:4000"
+    volumes:
+      - ../cfl-back:/workspace/cfl-back
+      - /workspace/cfl-back/node_modules
+    environment:
+      NODE_ENV: "development"
+      PORT: "4000"
+      DB_HOST: "sqlserver"
+      DB_PORT: "1433"
+      DB_USER: "sa"
+      DB_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      DB_NAME: "${MSSQL_DB:-ControlFletesDev}"
+    command: >
+      sh -c "npm install && npm run dev"
+    depends_on:
+      - sqlserver
+
   sqlserver:
     build:
       context: .
