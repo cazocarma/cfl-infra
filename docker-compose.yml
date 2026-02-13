@@ -1,4 +1,6 @@
-﻿services:
+name: greenvic-cfl
+
+services:
   front:
     image: node:20-slim
     working_dir: /workspace/cfl-front
@@ -36,7 +38,8 @@
     command: >
       sh -c "npm install && npm run dev"
     depends_on:
-      - sqlserver
+      sqlserver:
+        condition: service_healthy
 
   sqlserver:
     build:
@@ -49,6 +52,21 @@
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Developer"
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      MSSQL_DB: "${MSSQL_DB:-ControlFletesDev}"
     volumes:
-      - ./mssql-data:/var/opt/mssql
+      - mssql-data:/var/opt/mssql
       - ./database:/var/opt/mssql/seed
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+volumes:
+  mssql-data:
+

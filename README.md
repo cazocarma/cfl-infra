@@ -42,13 +42,15 @@ Al iniciar `sqlserver`, el contenedor ejecuta automaticamente:
 - `database/modelo-datos/SEED.sql`
 
 Esto ocurre solo la primera vez por volumen, usando el marcador:
-- `/var/opt/mssql/.cfl_model_initialized`
+- `/var/opt/mssql/.cfl_model_initialized_<MSSQL_DB>`
 
 Si necesitas volver a ejecutar inicializacion desde cero, elimina el volumen local:
 
 ```bash
 docker compose down -v
 ```
+
+`sqlserver` persiste datos en un volumen nombrado de Docker (`mssql-data`).
 
 ## Nota de BD empresarial
 

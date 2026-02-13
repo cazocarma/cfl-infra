@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MARKER_FILE="/var/opt/mssql/.cfl_model_initialized"
+TARGET_DB="${MSSQL_DB:-ControlFletesDev}"
+MARKER_FILE="/var/opt/mssql/.cfl_model_initialized_${TARGET_DB}"
 SCRIPTS_DIR="/var/opt/mssql/seed/modelo-datos"
 UP_SCRIPT="${SCRIPTS_DIR}/UP.sql"
 SEED_SCRIPT="${SCRIPTS_DIR}/SEED.sql"
@@ -27,9 +28,9 @@ shutdown() {
 trap shutdown SIGINT SIGTERM
 
 if [ -f "${MARKER_FILE}" ]; then
-  echo "Modelo de datos ya inicializado en este volumen. Omitiendo UP.sql y SEED.sql."
+  echo "Modelo de datos ya inicializado en este volumen para ${TARGET_DB}. Omitiendo UP.sql y SEED.sql."
   wait "${SQL_PID}"
-  exit $?
+  exit 0
 fi
 
 for script in "${UP_SCRIPT}" "${SEED_SCRIPT}"; do
@@ -40,7 +41,7 @@ for script in "${UP_SCRIPT}" "${SEED_SCRIPT}"; do
 done
 
 echo "Esperando SQL Server para inicializar modelo de datos..."
-for _ in $(seq 1 60); do
+for _ in $(seq 1 90); do
   if "${SQLCMD_BIN}" -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -Q "SELECT 1" >/dev/null 2>&1; then
     break
   fi
@@ -52,13 +53,16 @@ if ! "${SQLCMD_BIN}" -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -Q "SELECT 
   exit 1
 fi
 
-echo "Ejecutando UP.sql..."
-"${SQLCMD_BIN}" -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -i "${UP_SCRIPT}"
+echo "Asegurando base de datos destino: ${TARGET_DB}..."
+"${SQLCMD_BIN}" -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -Q "IF DB_ID(N'${TARGET_DB}') IS NULL CREATE DATABASE [${TARGET_DB}];"
 
-echo "Ejecutando SEED.sql..."
-"${SQLCMD_BIN}" -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -i "${SEED_SCRIPT}"
+echo "Ejecutando UP.sql en ${TARGET_DB}..."
+"${SQLCMD_BIN}" -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -d "${TARGET_DB}" -i "${UP_SCRIPT}"
+
+echo "Ejecutando SEED.sql en ${TARGET_DB}..."
+"${SQLCMD_BIN}" -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -d "${TARGET_DB}" -i "${SEED_SCRIPT}"
 
 touch "${MARKER_FILE}"
-echo "Inicializacion completada."
+echo "Inicializacion completada en ${TARGET_DB}."
 
 wait "${SQL_PID}"
