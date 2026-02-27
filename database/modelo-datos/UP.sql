@@ -125,38 +125,6 @@ ON [cfl].[CFL_sap_lips_raw] ([source_system], [sap_numero_entrega], [sap_posicio
 GO
 
 /* =========================
-   TABLA: cfl.CFL_sap_partner_raw
-========================= */
-CREATE TABLE [cfl].[CFL_sap_partner_raw] (
-    [raw_id] BIGINT IDENTITY UNIQUE,
-    [execution_id] UNIQUEIDENTIFIER NOT NULL,
-    [extracted_at] DATETIME2(0) NOT NULL,
-    [source_system] VARCHAR(50) NOT NULL,
-    [row_hash] BINARY(32) NOT NULL,
-    [row_status] VARCHAR(20) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-
-    [sap_numero_entrega] VARCHAR(20) NOT NULL,
-    [sap_funcion_interlocutor] CHAR(4) NOT NULL,
-    [sap_partner_ext] VARCHAR(60) NOT NULL,
-    [sap_partner_nombre] VARCHAR(40) NOT NULL,
-    [sap_partner_calle] VARCHAR(60) NOT NULL,
-    [sap_partner_ciudad] VARCHAR(40) NOT NULL,
-
-    PRIMARY KEY ([raw_id])
-);
-GO
-
-CREATE INDEX [IX_partner_execution]
-ON [cfl].[CFL_sap_partner_raw] ([execution_id]);
-GO
-
--- Índice soporte para vista "current" (BK + extracted_at)
-CREATE INDEX [CFL_sap_partner_raw_index_1]
-ON [cfl].[CFL_sap_partner_raw] ([source_system], [sap_numero_entrega], [sap_funcion_interlocutor], [extracted_at]);
-GO
-
-/* =========================
    TABLA: cfl.CFL_sap_entrega
 ========================= */
 CREATE TABLE [cfl].[CFL_sap_entrega] (
@@ -270,41 +238,6 @@ ON [cfl].[CFL_sap_entrega_posicion_hist] ([id_sap_entrega_posicion]);
 GO
 
 /* =========================
-   TABLA: cfl.CFL_sap_entrega_interlocutor
-========================= */
-CREATE TABLE [cfl].[CFL_sap_entrega_interlocutor] (
-    [id_sap_entrega_interlocutor] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_sap_entrega] BIGINT NOT NULL,
-    [sap_funcion_interlocutor] CHAR(4) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_sap_entrega_interlocutor])
-);
-GO
-
-CREATE UNIQUE INDEX [UX_sap_entrega_int_bk]
-ON [cfl].[CFL_sap_entrega_interlocutor] ([id_sap_entrega], [sap_funcion_interlocutor]);
-GO
-
-/* =========================
-   TABLA: cfl.CFL_sap_entrega_interlocutor_hist
-========================= */
-CREATE TABLE [cfl].[CFL_sap_entrega_interlocutor_hist] (
-    [id_sap_entrega_interlocutor_hist] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_sap_entrega_interlocutor] BIGINT NOT NULL,
-    [raw_partner_id] BIGINT NOT NULL,
-    [execution_id] UNIQUEIDENTIFIER NOT NULL,
-    [extracted_at] DATETIME2(0) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_sap_entrega_interlocutor_hist])
-);
-GO
-
-CREATE UNIQUE INDEX [UX_sap_entrega_int_hist_raw_partner]
-ON [cfl].[CFL_sap_entrega_interlocutor_hist] ([raw_partner_id]);
-GO
-
-/* =========================
    TABLAS: catálogo y operación
 ========================= */
 CREATE TABLE [cfl].[CFL_temporada] (
@@ -339,6 +272,19 @@ GO
 
 CREATE UNIQUE INDEX [UX_cc_sap_codigo]
 ON [cfl].[CFL_centro_costo] ([sap_codigo]);
+GO
+
+
+CREATE TABLE [cfl].[CFL_cuenta_mayor] (
+    [id_cuenta_mayor] BIGINT NOT NULL IDENTITY UNIQUE,
+    [codigo]          VARCHAR(30) NOT NULL,
+    [glosa]           VARCHAR(100) NOT NULL,
+    PRIMARY KEY ([id_cuenta_mayor])
+);
+GO
+
+CREATE UNIQUE INDEX [UX_cuenta_mayor_codigo]
+ON [cfl].[CFL_cuenta_mayor] ([codigo]);
 GO
 
 CREATE TABLE [cfl].[CFL_folio] (
@@ -535,6 +481,7 @@ CREATE TABLE [cfl].[CFL_cabecera_flete] (
     [sap_centro_costo_sugerido] CHAR(10),
     [sap_cuenta_mayor_sugerida] CHAR(10),
     [cuenta_mayor_final] CHAR(10),
+    [id_cuenta_mayor] BIGINT NULL,
     [tipo_movimiento] VARCHAR(4) NOT NULL,
     [estado] VARCHAR(20) NOT NULL,
     [fecha_salida] DATE NOT NULL,
@@ -555,6 +502,11 @@ GO
 
 CREATE INDEX [IX_flete_folio_estado]
 ON [cfl].[CFL_cabecera_flete] ([id_folio], [estado]);
+GO
+
+
+CREATE INDEX [IX_CFL_cabecera_flete_id_cuenta_mayor]
+ON [cfl].[CFL_cabecera_flete] ([id_cuenta_mayor]);
 GO
 
 CREATE TABLE [cfl].[CFL_detalle_flete] (
@@ -753,12 +705,6 @@ FOREIGN KEY ([execution_id]) REFERENCES [cfl].[CFL_etl_run] ([execution_id])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_sap_partner_raw]
-ADD CONSTRAINT [FK_CFL_sap_partner_raw_execution_id_CFL_etl_run]
-FOREIGN KEY ([execution_id]) REFERENCES [cfl].[CFL_etl_run] ([execution_id])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
 ALTER TABLE [cfl].[CFL_sap_entrega_hist]
 ADD CONSTRAINT [FK_CFL_sap_entrega_hist_id_sap_entrega_CFL_sap_entrega]
 FOREIGN KEY ([id_sap_entrega]) REFERENCES [cfl].[CFL_sap_entrega] ([id_sap_entrega])
@@ -786,24 +732,6 @@ GO
 ALTER TABLE [cfl].[CFL_sap_entrega_posicion_hist]
 ADD CONSTRAINT [FK_CFL_sap_entrega_posicion_hist_raw_lips_id_CFL_sap_lips_raw]
 FOREIGN KEY ([raw_lips_id]) REFERENCES [cfl].[CFL_sap_lips_raw] ([raw_id])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
-ALTER TABLE [cfl].[CFL_sap_entrega_interlocutor]
-ADD CONSTRAINT [FK_CFL_sap_entrega_interlocutor_id_sap_entrega_CFL_sap_entrega]
-FOREIGN KEY ([id_sap_entrega]) REFERENCES [cfl].[CFL_sap_entrega] ([id_sap_entrega])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
-ALTER TABLE [cfl].[CFL_sap_entrega_interlocutor_hist]
-ADD CONSTRAINT [FK_CFL_sap_entrega_interlocutor_hist_id_sap_entrega_interlocutor_CFL_sap_entrega_interlocutor]
-FOREIGN KEY ([id_sap_entrega_interlocutor]) REFERENCES [cfl].[CFL_sap_entrega_interlocutor] ([id_sap_entrega_interlocutor])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
-ALTER TABLE [cfl].[CFL_sap_entrega_interlocutor_hist]
-ADD CONSTRAINT [FK_CFL_sap_entrega_interlocutor_hist_raw_partner_id_CFL_sap_partner_raw]
-FOREIGN KEY ([raw_partner_id]) REFERENCES [cfl].[CFL_sap_partner_raw] ([raw_id])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
@@ -1029,6 +957,13 @@ FOREIGN KEY ([id_centro_costo_final]) REFERENCES [cfl].[CFL_centro_costo] ([id_c
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
+
+ALTER TABLE [cfl].[CFL_cabecera_flete]
+ADD CONSTRAINT [FK_CFL_cabecera_flete_id_cuenta_mayor_CFL_cuenta_mayor]
+FOREIGN KEY ([id_cuenta_mayor]) REFERENCES [cfl].[CFL_cuenta_mayor] ([id_cuenta_mayor])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
 ALTER TABLE [cfl].[CFL_flete_sap_entrega]
 ADD CONSTRAINT [FK_CFL_flete_sap_entrega_created_by_CFL_usuario]
 FOREIGN KEY ([created_by]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
@@ -1045,10 +980,6 @@ GO
 
 CREATE UNIQUE INDEX [UX_lips_bk_hash]
 ON [cfl].[CFL_sap_lips_raw] ([source_system], [sap_numero_entrega], [sap_posicion], [row_hash]);
-GO
-
-CREATE UNIQUE INDEX [UX_partner_bk_hash]
-ON [cfl].[CFL_sap_partner_raw] ([source_system], [sap_numero_entrega], [sap_funcion_interlocutor], [row_hash]);
 GO
 
 /* =========================
@@ -1161,6 +1092,124 @@ SELECT
 FROM ranked
 WHERE rn = 1;
 GO
+
+
+-- =========================================================
+-- LIPS RESUELTA
+-- Normaliza jerarquía (UEPOS) para exponer líneas efectivas
+-- =========================================================
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+CREATE OR ALTER VIEW [cfl].[vw_cfl_sap_lips_resuelta]
+AS
+WITH src AS
+(
+    SELECT
+        r.*,
+        pos_superior_norm = NULLIF(LTRIM(RTRIM(r.sap_posicion_superior)), '')
+    FROM [cfl].[vw_cfl_sap_lips_current] r
+),
+base AS
+(
+    SELECT *
+    FROM src
+    WHERE pos_superior_norm IS NULL
+),
+hijos AS
+(
+    SELECT *
+    FROM src
+    WHERE pos_superior_norm IS NOT NULL
+),
+base_flag AS
+(
+    SELECT
+        b.*,
+        has_children =
+            CASE WHEN EXISTS (
+                SELECT 1
+                FROM hijos h
+                WHERE h.source_system      = b.source_system
+                  AND h.sap_numero_entrega = b.sap_numero_entrega
+                  AND h.pos_superior_norm  = b.sap_posicion
+            ) THEN 1 ELSE 0 END
+    FROM base b
+),
+out_hijos AS
+(
+    SELECT
+        h.source_system,
+        h.sap_numero_entrega,
+        sap_posicion_raiz        = h.pos_superior_norm,     -- la “posición base” (000030)
+        sap_posicion_efectiva    = h.sap_posicion,          -- la sub-línea (900001)
+        sap_posicion_superior    = h.pos_superior_norm,
+        h.sap_lote,
+
+        raw_id                   = h.raw_id,
+        extracted_at             = h.extracted_at,
+        row_hash                 = h.row_hash,
+        row_status               = h.row_status,
+        execution_id             = h.execution_id,
+        created_at               = h.created_at,
+
+        sap_material             = COALESCE(NULLIF(LTRIM(RTRIM(h.sap_material)),''), b.sap_material),
+        sap_cantidad_entregada   = h.sap_cantidad_entregada,
+        sap_unidad_peso          = h.sap_unidad_peso,
+        sap_denominacion_material= h.sap_denominacion_material,
+        sap_centro               = h.sap_centro,
+        sap_almacen              = h.sap_almacen,
+
+        raw_id_base              = b.raw_id,
+        extracted_at_base        = b.extracted_at,
+        execution_id_base        = b.execution_id
+    FROM hijos h
+    LEFT JOIN base b
+      ON b.source_system      = h.source_system
+     AND b.sap_numero_entrega = h.sap_numero_entrega
+     AND b.sap_posicion       = h.pos_superior_norm
+),
+out_base_sin_hijos AS
+(
+    SELECT
+        b.source_system,
+        b.sap_numero_entrega,
+        sap_posicion_raiz        = b.sap_posicion,
+        sap_posicion_efectiva    = b.sap_posicion,
+        sap_posicion_superior    = CAST(NULL AS CHAR(6)),
+        b.sap_lote,
+
+        raw_id                   = b.raw_id,
+        extracted_at             = b.extracted_at,
+        row_hash                 = b.row_hash,
+        row_status               = b.row_status,
+        execution_id             = b.execution_id,
+        created_at               = b.created_at,
+
+        sap_material             = b.sap_material,
+        sap_cantidad_entregada   = b.sap_cantidad_entregada,
+        sap_unidad_peso          = b.sap_unidad_peso,
+        sap_denominacion_material= b.sap_denominacion_material,
+        sap_centro               = b.sap_centro,
+        sap_almacen              = b.sap_almacen,
+
+        raw_id_base              = b.raw_id,
+        extracted_at_base        = b.extracted_at,
+        execution_id_base        = b.execution_id
+    FROM base_flag b
+    WHERE b.has_children = 0
+)
+SELECT * FROM out_hijos
+UNION ALL
+SELECT * FROM out_base_sin_hijos;
+GO
+
+
 
 -- =========================================================
 -- LIKP AS_OF (parametrizado)

@@ -10,11 +10,18 @@ services:
     volumes:
       - ../cfl-front:/workspace/cfl-front
       - /workspace/cfl-front/node_modules
+      - npm-cache:/root/.npm
     environment:
       NODE_ENV: "development"
       NEXT_PUBLIC_API_URL: "http://localhost:${BACK_PORT:-4000}"
+      NPM_CONFIG_FETCH_RETRIES: "5"
+      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
+      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
     command: >
-      sh -c "npm install && npm run dev -- --port 3000 --hostname 0.0.0.0"
+      sh -c "if [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then npm install --prefer-offline; fi && npm run dev -- --port 3000 --hostname 0.0.0.0"
     depends_on:
       - back
 
@@ -22,51 +29,53 @@ services:
     image: node:20-slim
     working_dir: /workspace/cfl-back
     container_name: cfl-back
+    env_file:
+      - ./.env
     ports:
       - "${BACK_PORT:-4000}:4000"
     volumes:
       - ../cfl-back:/workspace/cfl-back
       - /workspace/cfl-back/node_modules
+      - npm-cache:/root/.npm
     environment:
       NODE_ENV: "development"
       PORT: "4000"
-      DB_HOST: "sqlserver"
-      DB_PORT: "1433"
-      DB_USER: "sa"
-      DB_PASSWORD: "${MSSQL_SA_PASSWORD}"
-      DB_NAME: "${MSSQL_DB:-ControlFletesDev}"
+      NPM_CONFIG_FETCH_RETRIES: "5"
+      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
+      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
     command: >
-      sh -c "npm install && npm run dev"
-    depends_on:
-      sqlserver:
-        condition: service_healthy
+      sh -c "if [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then npm install --prefer-offline; fi && npm run dev"
 
-  sqlserver:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: cfl-sqlserver-dev
-    ports:
-      - "${MSSQL_PORT:-1433}:1433"
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_PID: "Developer"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
-      MSSQL_DB: "${MSSQL_DB:-ControlFletesDev}"
-    volumes:
-      - mssql-data:/var/opt/mssql
-      - ./database:/var/opt/mssql/seed
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\"",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 40s
+  # sqlserver:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: cfl-sqlserver-dev
+  #   ports:
+  #     - "${MSSQL_PORT:-1433}:1433"
+  #   environment:
+  #     ACCEPT_EULA: "Y"
+  #     MSSQL_PID: "Developer"
+  #     MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+  #     MSSQL_DB: "${MSSQL_DB:-ControlFletesDev}"
+  #   volumes:
+  #     - mssql-data:/var/opt/mssql
+  #     - ./database:/var/opt/mssql/seed
+  #   healthcheck:
+  #     test:
+  #       [
+  #         "CMD-SHELL",
+  #         "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\"",
+  #       ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 20
+  #     start_period: 40s
 
 volumes:
   mssql-data:
+  npm-cache:
 
