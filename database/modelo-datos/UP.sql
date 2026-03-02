@@ -1064,10 +1064,126 @@ WITH ranked AS
         rn = ROW_NUMBER() OVER
         (
             PARTITION BY r.[source_system], r.[sap_numero_entrega], r.[sap_posicion]
-            ORDER BY r.[extracted_at] DESC, r.[raw_id] DESC
+            ORDER BY
+                CASE WHEN NULLIF(LTRIM(RTRIM(r.[sap_posicion_superior])), '') IS NOT NULL THEN 0 ELSE 1 END,
+                r.[extracted_at] DESC,
+                r.[raw_id] DESC
         )
     FROM [cfl].[CFL_sap_lips_raw] r
     WHERE r.[row_status] = 'ACTIVE'
+),
+src AS
+(
+    SELECT
+        sap_numero_entrega,
+        sap_posicion = RIGHT(CONCAT('000000', LTRIM(RTRIM(sap_posicion))), 6),
+        sap_posicion_superior =
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(sap_posicion_superior)), '') IS NULL THEN NULL
+                ELSE RIGHT(CONCAT('000000', LTRIM(RTRIM(sap_posicion_superior))), 6)
+            END,
+        sap_lote,
+        raw_id,
+        extracted_at,
+        row_hash,
+        row_status,
+        execution_id,
+        source_system,
+        created_at,
+        sap_material,
+        sap_cantidad_entregada,
+        sap_unidad_peso,
+        sap_denominacion_material,
+        sap_centro,
+        sap_almacen
+    FROM ranked
+    WHERE rn = 1
+),
+base AS
+(
+    SELECT *
+    FROM src
+    WHERE sap_posicion_superior IS NULL
+),
+hijos AS
+(
+    SELECT *
+    FROM src
+    WHERE sap_posicion_superior IS NOT NULL
+),
+base_flag AS
+(
+    SELECT
+        b.*,
+        has_children =
+            CASE WHEN EXISTS (
+                SELECT 1
+                FROM hijos h
+                WHERE h.source_system = b.source_system
+                  AND h.sap_numero_entrega = b.sap_numero_entrega
+                  AND h.sap_posicion_superior = b.sap_posicion
+            ) THEN 1 ELSE 0 END
+    FROM base b
+),
+out_hijos AS
+(
+    SELECT
+        sap_numero_entrega = h.sap_numero_entrega,
+        sap_posicion = h.sap_posicion,
+        sap_posicion_superior = h.sap_posicion_superior,
+        sap_lote = h.sap_lote,
+        raw_id = h.raw_id,
+        extracted_at = h.extracted_at,
+        row_hash = h.row_hash,
+        row_status = h.row_status,
+        execution_id = h.execution_id,
+        source_system = h.source_system,
+        created_at = h.created_at,
+        sap_material = COALESCE(NULLIF(LTRIM(RTRIM(h.sap_material)), ''), b.sap_material),
+        sap_cantidad_entregada = h.sap_cantidad_entregada,
+        sap_unidad_peso = h.sap_unidad_peso,
+        sap_denominacion_material = h.sap_denominacion_material,
+        sap_centro = h.sap_centro,
+        sap_almacen = h.sap_almacen,
+        sap_posicion_raiz = h.sap_posicion_superior,
+        sap_posicion_efectiva = h.sap_posicion,
+        raw_id_base = b.raw_id,
+        extracted_at_base = b.extracted_at,
+        execution_id_base = b.execution_id
+    FROM hijos h
+    LEFT JOIN base b
+      ON b.source_system = h.source_system
+     AND b.sap_numero_entrega = h.sap_numero_entrega
+     AND b.sap_posicion = h.sap_posicion_superior
+),
+out_base_sin_hijos AS
+(
+    SELECT
+        sap_numero_entrega = b.sap_numero_entrega,
+        sap_posicion = b.sap_posicion,
+        sap_posicion_superior = CAST(NULL AS CHAR(6)),
+        sap_lote = b.sap_lote,
+        raw_id = b.raw_id,
+        extracted_at = b.extracted_at,
+        row_hash = b.row_hash,
+        row_status = b.row_status,
+        execution_id = b.execution_id,
+        source_system = b.source_system,
+        created_at = b.created_at,
+        sap_material = b.sap_material,
+        sap_cantidad_entregada = b.sap_cantidad_entregada,
+        sap_unidad_peso = b.sap_unidad_peso,
+        sap_denominacion_material = b.sap_denominacion_material,
+        sap_centro = b.sap_centro,
+        sap_almacen = b.sap_almacen,
+        sap_posicion_raiz = b.sap_posicion,
+        sap_posicion_efectiva = b.sap_posicion,
+        raw_id_base = b.raw_id,
+        extracted_at_base = b.extracted_at,
+        execution_id_base = b.execution_id
+    FROM base_flag b
+    WHERE b.has_children = 0
+      AND b.sap_cantidad_entregada > 0
 )
 SELECT
     sap_numero_entrega,
@@ -1088,15 +1204,44 @@ SELECT
     sap_unidad_peso,
     sap_denominacion_material,
     sap_centro,
-    sap_almacen
-FROM ranked
-WHERE rn = 1;
+    sap_almacen,
+    sap_posicion_raiz,
+    sap_posicion_efectiva,
+    raw_id_base,
+    extracted_at_base,
+    execution_id_base
+FROM out_hijos
+UNION ALL
+SELECT
+    sap_numero_entrega,
+    sap_posicion,
+    sap_posicion_superior,
+    sap_lote,
+    raw_id,
+    extracted_at,
+    row_hash,
+    row_status,
+    execution_id,
+    source_system,
+    created_at,
+    sap_material,
+    sap_cantidad_entregada,
+    sap_unidad_peso,
+    sap_denominacion_material,
+    sap_centro,
+    sap_almacen,
+    sap_posicion_raiz,
+    sap_posicion_efectiva,
+    raw_id_base,
+    extracted_at_base,
+    execution_id_base
+FROM out_base_sin_hijos;
 GO
 
 
 -- =========================================================
 -- LIPS RESUELTA
--- Normaliza jerarquía (UEPOS) para exponer líneas efectivas
+-- Compatibilidad sobre vw_cfl_sap_lips_current
 -- =========================================================
 
 SET ANSI_NULLS ON
@@ -1108,108 +1253,30 @@ GO
 
 CREATE OR ALTER VIEW [cfl].[vw_cfl_sap_lips_resuelta]
 AS
-WITH src AS
-(
-    SELECT
-        r.*,
-        pos_superior_norm = NULLIF(LTRIM(RTRIM(r.sap_posicion_superior)), '')
-    FROM [cfl].[vw_cfl_sap_lips_current] r
-),
-base AS
-(
-    SELECT *
-    FROM src
-    WHERE pos_superior_norm IS NULL
-),
-hijos AS
-(
-    SELECT *
-    FROM src
-    WHERE pos_superior_norm IS NOT NULL
-),
-base_flag AS
-(
-    SELECT
-        b.*,
-        has_children =
-            CASE WHEN EXISTS (
-                SELECT 1
-                FROM hijos h
-                WHERE h.source_system      = b.source_system
-                  AND h.sap_numero_entrega = b.sap_numero_entrega
-                  AND h.pos_superior_norm  = b.sap_posicion
-            ) THEN 1 ELSE 0 END
-    FROM base b
-),
-out_hijos AS
-(
-    SELECT
-        h.source_system,
-        h.sap_numero_entrega,
-        sap_posicion_raiz        = h.pos_superior_norm,     -- la “posición base” (000030)
-        sap_posicion_efectiva    = h.sap_posicion,          -- la sub-línea (900001)
-        sap_posicion_superior    = h.pos_superior_norm,
-        h.sap_lote,
-
-        raw_id                   = h.raw_id,
-        extracted_at             = h.extracted_at,
-        row_hash                 = h.row_hash,
-        row_status               = h.row_status,
-        execution_id             = h.execution_id,
-        created_at               = h.created_at,
-
-        sap_material             = COALESCE(NULLIF(LTRIM(RTRIM(h.sap_material)),''), b.sap_material),
-        sap_cantidad_entregada   = h.sap_cantidad_entregada,
-        sap_unidad_peso          = h.sap_unidad_peso,
-        sap_denominacion_material= h.sap_denominacion_material,
-        sap_centro               = h.sap_centro,
-        sap_almacen              = h.sap_almacen,
-
-        raw_id_base              = b.raw_id,
-        extracted_at_base        = b.extracted_at,
-        execution_id_base        = b.execution_id
-    FROM hijos h
-    LEFT JOIN base b
-      ON b.source_system      = h.source_system
-     AND b.sap_numero_entrega = h.sap_numero_entrega
-     AND b.sap_posicion       = h.pos_superior_norm
-),
-out_base_sin_hijos AS
-(
-    SELECT
-        b.source_system,
-        b.sap_numero_entrega,
-        sap_posicion_raiz        = b.sap_posicion,
-        sap_posicion_efectiva    = b.sap_posicion,
-        sap_posicion_superior    = CAST(NULL AS CHAR(6)),
-        b.sap_lote,
-
-        raw_id                   = b.raw_id,
-        extracted_at             = b.extracted_at,
-        row_hash                 = b.row_hash,
-        row_status               = b.row_status,
-        execution_id             = b.execution_id,
-        created_at               = b.created_at,
-
-        sap_material             = b.sap_material,
-        sap_cantidad_entregada   = b.sap_cantidad_entregada,
-        sap_unidad_peso          = b.sap_unidad_peso,
-        sap_denominacion_material= b.sap_denominacion_material,
-        sap_centro               = b.sap_centro,
-        sap_almacen              = b.sap_almacen,
-
-        raw_id_base              = b.raw_id,
-        extracted_at_base        = b.extracted_at,
-        execution_id_base        = b.execution_id
-    FROM base_flag b
-    WHERE b.has_children = 0
-)
-SELECT * FROM out_hijos
-UNION ALL
-SELECT * FROM out_base_sin_hijos;
+SELECT
+    source_system,
+    sap_numero_entrega,
+    sap_posicion_raiz,
+    sap_posicion_efectiva,
+    sap_posicion_superior,
+    sap_lote,
+    raw_id,
+    extracted_at,
+    row_hash,
+    row_status,
+    execution_id,
+    created_at,
+    sap_material,
+    sap_cantidad_entregada,
+    sap_unidad_peso,
+    sap_denominacion_material,
+    sap_centro,
+    sap_almacen,
+    raw_id_base,
+    extracted_at_base,
+    execution_id_base
+FROM [cfl].[vw_cfl_sap_lips_current];
 GO
-
-
 
 -- =========================================================
 -- LIKP AS_OF (parametrizado)
@@ -1320,3 +1387,130 @@ SELECT
 FROM ranked
 WHERE rn = 1;
 GO
+
+
+
+/*
+  Patch idempotente para cargar permisos y matriz rol/permiso.
+  Ejecutar en la base objetivo (ej: DBPRD) despues de UP/SEED.
+*/
+
+SET NOCOUNT ON;
+
+BEGIN TRANSACTION;
+
+;WITH src AS (
+  SELECT recurso, accion, clave, descripcion, activo
+  FROM (VALUES
+    ('mantenedores', 'view', 'mantenedores.view', 'Consultar mantenedores', 1),
+    ('mantenedores', 'admin', 'mantenedores.admin', 'Administracion completa de mantenedores', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.temporadas', 'Editar mantenedor temporadas', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.centros-costo', 'Editar mantenedor centros de costo', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.tipos-flete', 'Editar mantenedor tipos de flete', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.detalles-viaje', 'Editar mantenedor detalles de viaje', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.especies', 'Editar mantenedor especies', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.nodos', 'Editar mantenedor nodos', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.rutas', 'Editar mantenedor rutas', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.tipos-camion', 'Editar mantenedor tipos de camion', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.camiones', 'Editar mantenedor camiones', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.empresas-transporte', 'Editar mantenedor empresas de transporte', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.choferes', 'Editar mantenedor choferes', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.tarifas', 'Editar mantenedor tarifas', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.cuentas-mayor', 'Editar mantenedor cuentas mayores', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.folios', 'Editar mantenedor folios', 1),
+    ('mantenedores', 'edit', 'mantenedores.edit.usuarios', 'Editar mantenedor usuarios', 1),
+    ('fletes', 'view', 'fletes.candidatos.view', 'Ver candidatos a flete', 1),
+    ('fletes', 'create', 'fletes.crear', 'Crear flete desde candidato', 1),
+    ('fletes', 'edit', 'fletes.editar', 'Editar flete', 1),
+    ('fletes', 'change_state', 'fletes.estado.cambiar', 'Cambiar estado operativo de flete', 1),
+    ('excepciones', 'manage', 'excepciones.gestionar', 'Gestionar excepciones', 1),
+    ('excepciones', 'authorize', 'excepciones.autorizar', 'Autorizar excepciones', 1),
+    ('folios', 'assign', 'folios.asignar', 'Asignar/reasignar folio', 1),
+    ('folios', 'close', 'folios.cerrar', 'Cerrar folio', 1),
+    ('facturas', 'edit', 'facturas.editar', 'Registrar/editar factura', 1),
+    ('facturas', 'reconcile', 'facturas.conciliar', 'Conciliar factura con flete', 1),
+    ('planillas', 'generate', 'planillas.generar', 'Generar/reemitir planilla SAP', 1),
+    ('reportes', 'view', 'reportes.view', 'Visualizar dashboard y reportes', 1),
+    ('usuarios', 'admin', 'usuarios.permisos.admin', 'Administrar usuarios/roles/permisos', 1)
+  ) v(recurso, accion, clave, descripcion, activo)
+)
+MERGE cfl.CFL_permiso AS t
+USING src AS s
+ON t.clave = s.clave
+WHEN MATCHED THEN
+  UPDATE SET
+    t.recurso = s.recurso,
+    t.accion = s.accion,
+    t.descripcion = s.descripcion,
+    t.activo = s.activo
+WHEN NOT MATCHED THEN
+  INSERT (recurso, accion, clave, descripcion, activo)
+  VALUES (s.recurso, s.accion, s.clave, s.descripcion, s.activo);
+
+;WITH role_permiso AS (
+  SELECT r.id_rol, p.id_permiso
+  FROM cfl.CFL_rol r
+  INNER JOIN cfl.CFL_permiso p ON p.activo = 1
+  WHERE r.nombre = 'Administrador'
+
+  UNION ALL
+
+  SELECT r.id_rol, p.id_permiso
+  FROM cfl.CFL_rol r
+  INNER JOIN cfl.CFL_permiso p ON p.activo = 1
+  WHERE r.nombre = 'Ingresador'
+    AND p.clave IN (
+      'mantenedores.view',
+      'fletes.candidatos.view',
+      'fletes.crear',
+      'fletes.editar',
+      'fletes.estado.cambiar',
+      'excepciones.gestionar',
+      'facturas.editar',
+      'reportes.view'
+    )
+
+  UNION ALL
+
+  SELECT r.id_rol, p.id_permiso
+  FROM cfl.CFL_rol r
+  INNER JOIN cfl.CFL_permiso p ON p.activo = 1
+  WHERE r.nombre = 'Autorizador'
+    AND p.clave IN (
+      'mantenedores.view',
+      'mantenedores.edit.centros-costo',
+      'mantenedores.edit.detalles-viaje',
+      'mantenedores.edit.especies',
+      'mantenedores.edit.nodos',
+      'mantenedores.edit.rutas',
+      'mantenedores.edit.tipos-camion',
+      'mantenedores.edit.camiones',
+      'mantenedores.edit.empresas-transporte',
+      'mantenedores.edit.choferes',
+      'mantenedores.edit.tarifas',
+      'fletes.candidatos.view',
+      'fletes.crear',
+      'fletes.editar',
+      'fletes.estado.cambiar',
+      'excepciones.gestionar',
+      'excepciones.autorizar',
+      'folios.asignar',
+      'folios.cerrar',
+      'facturas.editar',
+      'facturas.conciliar',
+      'planillas.generar',
+      'reportes.view'
+    )
+)
+MERGE cfl.CFL_rol_permiso AS t
+USING role_permiso AS s
+ON t.id_rol = s.id_rol AND t.id_permiso = s.id_permiso
+WHEN NOT MATCHED THEN
+  INSERT (id_rol, id_permiso) VALUES (s.id_rol, s.id_permiso);
+
+COMMIT TRANSACTION;
+
+SELECT
+  roles = (SELECT COUNT_BIG(1) FROM cfl.CFL_rol),
+  permisos = (SELECT COUNT_BIG(1) FROM cfl.CFL_permiso),
+  asignaciones = (SELECT COUNT_BIG(1) FROM cfl.CFL_rol_permiso);
