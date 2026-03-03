@@ -25,6 +25,29 @@ services:
     depends_on:
       - back
 
+  front-ng:
+    image: node:20-slim
+    working_dir: /workspace/cfl-front-ng
+    container_name: cfl-front-ng
+    ports:
+      - "${FRONT_NG_PORT:-3001}:3001"
+    volumes:
+      - ../cfl-front-ng:/workspace/cfl-front-ng
+      - /workspace/cfl-front-ng/node_modules
+      - npm-cache:/root/.npm
+    environment:
+      NODE_ENV: "development"
+      NPM_CONFIG_FETCH_RETRIES: "5"
+      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
+      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+    command: >
+      sh -c "if [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then npm install --prefer-offline; fi && npm start"
+    depends_on:
+      - back
+
   back:
     image: node:20-slim
     working_dir: /workspace/cfl-back
