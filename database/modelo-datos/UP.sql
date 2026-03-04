@@ -474,27 +474,29 @@ GO
 
 CREATE TABLE [cfl].[CFL_cabecera_flete] (
     [id_cabecera_flete] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_detalle_viaje] BIGINT,
-    [id_folio] BIGINT,
-    [sap_numero_entrega_sugerido] VARCHAR(20),
-    [sap_codigo_tipo_flete_sugerido] CHAR(4),
-    [sap_centro_costo_sugerido] CHAR(10),
-    [sap_cuenta_mayor_sugerida] CHAR(10),
-    [cuenta_mayor_final] CHAR(10),
-    [id_cuenta_mayor] BIGINT NULL,
+    [sap_numero_entrega] VARCHAR(20),
+    [sap_codigo_tipo_flete] CHAR(4),
+    [sap_centro_costo] CHAR(10),
+    [sap_cuenta_mayor] CHAR(10),
+    [sap_guia_remision] CHAR(25),
+    [numero_entrega] VARCHAR(20),
+    [guia_remision] CHAR(25),
     [tipo_movimiento] VARCHAR(4) NOT NULL,
     [estado] VARCHAR(20) NOT NULL,
     [fecha_salida] DATE NOT NULL,
     [hora_salida] TIME NOT NULL,
     [monto_aplicado] DECIMAL(18,2) NOT NULL,
+    [observaciones] VARCHAR(200),
+    [id_cuenta_mayor] BIGINT NULL,
+    [id_centro_costo] BIGINT NOT NULL,
+    [id_folio] BIGINT,
+    [id_tipo_flete] BIGINT NOT NULL,
+    [id_detalle_viaje] BIGINT,
     [id_movil] BIGINT,
     [id_tarifa] BIGINT,
-    [observaciones] VARCHAR(200),
     [id_usuario_creador] BIGINT,
-    [id_tipo_flete] BIGINT NOT NULL,
     [created_at] DATETIME2(0) NOT NULL,
     [updated_at] DATETIME2(0) NOT NULL,
-    [id_centro_costo_final] BIGINT NOT NULL,
     PRIMARY KEY ([id_cabecera_flete]),
     CONSTRAINT [CK_CFL_cabecera_flete_tipo_movimiento] CHECK ([tipo_movimiento] IN ('PUSH','PULL'))
 );
@@ -952,8 +954,8 @@ ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
 ALTER TABLE [cfl].[CFL_cabecera_flete]
-ADD CONSTRAINT [FK_CFL_cabecera_flete_id_centro_costo_final_CFL_centro_costo]
-FOREIGN KEY ([id_centro_costo_final]) REFERENCES [cfl].[CFL_centro_costo] ([id_centro_costo])
+ADD CONSTRAINT [FK_CFL_cabecera_flete_id_centro_costo_CFL_centro_costo]
+FOREIGN KEY ([id_centro_costo]) REFERENCES [cfl].[CFL_centro_costo] ([id_centro_costo])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 

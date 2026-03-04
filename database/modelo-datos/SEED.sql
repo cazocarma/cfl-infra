@@ -877,13 +877,122 @@ WHEN NOT MATCHED THEN
 
 
 /* ============================================================
-   7) CFL_centro_costo POR DEFINIR + CFL_tipo_flete (0001..0006)
+   7) CFL_centro_costo + CFL_cuenta_mayor + CFL_tipo_flete
    ============================================================ */
 MERGE cfl.CFL_centro_costo AS t
 USING (SELECT 'POR DEFINIR' AS sap_codigo, 'POR DEFINIR' AS nombre) s
 ON t.sap_codigo = s.sap_codigo
 WHEN NOT MATCHED THEN
   INSERT (sap_codigo, nombre, activo) VALUES (s.sap_codigo, s.nombre, 1);
+
+/* Centros de costo operacionales (antes en CC.sql) */
+INSERT INTO [cfl].[CFL_centro_costo] (sap_codigo, nombre, activo)
+SELECT v.sap_codigo, v.nombre, 1
+FROM (VALUES
+  ('GC3020101', 'Gcia Comercial | Transporte'),
+  ('GC6010101', 'Gcia Agricola | Campo'),
+  ('GC6010102', 'Gcia Agricola | Campo'),
+  ('GC6010103', 'Gcia Agricola | Campo'),
+  ('GC6010104', 'Gcia Agricola | Campo'),
+  ('GC6010105', 'Gcia Agricola | Campo'),
+  ('GC6010201', 'Gcia Agricola | Campo'),
+  ('GC2070101', 'Gcia Operaciones | Bodega'),
+  ('GC2070201', 'Gcia Operaciones | Bodega'),
+  ('GC2070301', 'Gcia Operaciones | Bodega'),
+  ('GC2060101', 'Gcia Operaciones | Mat Cosecha'),
+  ('GC2060201', 'Gcia Operaciones | Mat Cosecha'),
+  ('GC2060301', 'Gcia Operaciones | Mat Cosecha'),
+  ('GC2020101', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020301', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020302', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020303', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020304', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020305', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020306', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020307', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020308', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020401', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020501', 'Gcia Operaciones | Plta FSD'),
+  ('GC2020502', 'Gcia Operaciones | Plta FSD'),
+  ('GC2030101', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030102', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030103', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030104', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030105', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030106', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030107', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030108', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030201', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030301', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030401', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030501', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030601', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030701', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030702', 'Gcia Operaciones | Plta Placill'),
+  ('GC2030703', 'Gcia Operaciones | Plta Placill'),
+  ('GC2040101', 'Gcia Operaciones | Plta Organic'),
+  ('GC2040201', 'Gcia Operaciones | Plta Organic'),
+  ('GC2040301', 'Gcia Operaciones | Plta Organic'),
+  ('GC2040401', 'Gcia Operaciones | Plta Organic'),
+  ('GC2040501', 'Gcia Operaciones | Plta Organik'),
+  ('GC2040502', 'Gcia Operaciones | Plta Organik'),
+  ('GC2040503', 'Gcia Operaciones | Plta Organik'),
+  ('GC2050101', 'Gcia Operaciones | Plta LA'),
+  ('GC2050102', 'Gcia Operaciones | Plta LA'),
+  ('GC2050103', 'Gcia Operaciones | Plta LA'),
+  ('GC2050104', 'Gcia Operaciones | Plta LA'),
+  ('GC2050105', 'Gcia Operaciones | Plta LA'),
+  ('GC2050106', 'Gcia Operaciones | Plta LA'),
+  ('GC2050201', 'Gcia Operaciones | Plta LA'),
+  ('GC2050301', 'Gcia Operaciones | Plta LA'),
+  ('GC2050401', 'Gcia Operaciones | Plta LA'),
+  ('GC2050450', 'Gcia Operaciones | Plta LA'),
+  ('GC2050501', 'Gcia Operaciones | Plta LA'),
+  ('GC2050502', 'Gcia Operaciones | Plta LA'),
+  ('GC2050503', 'Gcia Operaciones | Plta LA'),
+  ('GC2050601', 'Gcia Operaciones | Plta LA'),
+  ('GC2010101', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010102', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010103', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010104', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010201', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010301', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010401', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010501', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010502', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010601', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010701', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010801', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010802', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010803', 'Gcia Operaciones | Plta Maipo'),
+  ('GC2010804', 'Gcia Operaciones | Plta Maipo'),
+  ('GC7020101', 'Gcia Operaciones | Plta Maipo'),
+  ('GC7030101', 'Gcia Operaciones | Plta Placill'),
+  ('GC7040101', 'Gcia Operaciones | Plta LA')
+) v(sap_codigo, nombre)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM [cfl].[CFL_centro_costo] t_existing
+  WHERE t_existing.sap_codigo = v.sap_codigo
+);
+
+/* Cuentas mayores base (antes en CM.sql) */
+INSERT INTO [cfl].[CFL_cuenta_mayor] (codigo, glosa)
+SELECT v.codigo, ''
+FROM (VALUES
+  ('51020314'),
+  ('51020315'),
+  ('51020316'),
+  ('51020317'),
+  ('51020318'),
+  ('61010221'),
+  ('51020502')
+) v(codigo)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM [cfl].[CFL_cuenta_mayor] t_existing
+  WHERE t_existing.codigo = v.codigo
+);
 
 DECLARE @id_cc_por_definir bigint = (SELECT TOP 1 id_centro_costo FROM cfl.CFL_centro_costo WHERE sap_codigo='POR DEFINIR');
 
