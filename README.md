@@ -13,7 +13,7 @@ docker compose up -d
 ```
 
 Esto levanta:
-- `front` en `http://localhost:3000`
+- `front-ng` en `http://localhost:3001`
 - `back` en `http://localhost:4000`
 - `sqlserver` en `localhost,1433`
 

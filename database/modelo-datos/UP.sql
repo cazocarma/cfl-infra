@@ -1,11 +1,11 @@
-/* ============================================================================
+﻿/* ============================================================================
    ESQUEMA: cfl
    - Crea el esquema cfl (si no existe)
    - Crea tablas bajo [cfl].[*]
-   - Crea índices (sin prefijo de esquema en el nombre del índice)
+   - Crea Ã­ndices (sin prefijo de esquema en el nombre del Ã­ndice)
    - Crea FKs
-   - Crea índices UNIQUE de deduplicación BK+hash (Línea A)
-   - Crea vistas "current" (última versión por BK) apuntando a tablas reales
+   - Crea Ã­ndices UNIQUE de deduplicaciÃ³n BK+hash (LÃ­nea A)
+   - Crea vistas "current" (Ãºltima versiÃ³n por BK) apuntando a tablas reales
 ============================================================================ */
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'cfl')
@@ -79,7 +79,7 @@ CREATE INDEX [IX_likp_execution]
 ON [cfl].[CFL_sap_likp_raw] ([execution_id]);
 GO
 
--- Índice soporte para vista "current" (BK + extracted_at)
+-- Ãndice soporte para vista "current" (BK + extracted_at)
 CREATE INDEX [CFL_sap_likp_raw_index_1]
 ON [cfl].[CFL_sap_likp_raw] ([source_system], [sap_numero_entrega], [extracted_at]);
 GO
@@ -115,7 +115,7 @@ CREATE INDEX [IX_lips_execution]
 ON [cfl].[CFL_sap_lips_raw] ([execution_id]);
 GO
 
--- Índice soporte para vista "current" (BK + extracted_at)
+-- Ãndice soporte para vista "current" (BK + extracted_at)
 CREATE INDEX [CFL_sap_lips_raw_index_1]
 ON [cfl].[CFL_sap_lips_raw] ([source_system], [sap_numero_entrega], [sap_posicion], [extracted_at]);
 GO
@@ -236,9 +236,33 @@ GO
 CREATE INDEX [CFL_sap_entrega_posicion_hist_index_1]
 ON [cfl].[CFL_sap_entrega_posicion_hist] ([id_sap_entrega_posicion]);
 GO
+/* =========================
+   TABLA: cfl.CFL_sap_entrega_descarte
+========================= */
+CREATE TABLE [cfl].[CFL_sap_entrega_descarte] (
+    [id_sap_entrega_descarte] BIGINT NOT NULL IDENTITY UNIQUE,
+    [id_sap_entrega] BIGINT NOT NULL,
+    [activo] BIT NOT NULL CONSTRAINT [DF_CFL_sap_entrega_descarte_activo] DEFAULT(1),
+    [motivo] VARCHAR(200),
+    [created_at] DATETIME2(0) NOT NULL,
+    [updated_at] DATETIME2(0) NOT NULL,
+    [created_by] BIGINT,
+    [restored_at] DATETIME2(0),
+    [restored_by] BIGINT,
+    PRIMARY KEY ([id_sap_entrega_descarte])
+);
+GO
+
+CREATE UNIQUE INDEX [UX_sap_entrega_descarte_entrega]
+ON [cfl].[CFL_sap_entrega_descarte] ([id_sap_entrega]);
+GO
+
+CREATE INDEX [IX_sap_entrega_descarte_activo]
+ON [cfl].[CFL_sap_entrega_descarte] ([activo], [id_sap_entrega]);
+GO
 
 /* =========================
-   TABLAS: catálogo y operación
+   TABLAS: catÃ¡logo y operaciÃ³n
 ========================= */
 CREATE TABLE [cfl].[CFL_temporada] (
     [id_temporada] BIGINT NOT NULL IDENTITY UNIQUE,
@@ -971,9 +995,26 @@ ADD CONSTRAINT [FK_CFL_flete_sap_entrega_created_by_CFL_usuario]
 FOREIGN KEY ([created_by]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
+ALTER TABLE [cfl].[CFL_sap_entrega_descarte]
+ADD CONSTRAINT [FK_CFL_sap_entrega_descarte_id_sap_entrega_CFL_sap_entrega]
+FOREIGN KEY ([id_sap_entrega]) REFERENCES [cfl].[CFL_sap_entrega] ([id_sap_entrega])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+ALTER TABLE [cfl].[CFL_sap_entrega_descarte]
+ADD CONSTRAINT [FK_CFL_sap_entrega_descarte_created_by_CFL_usuario]
+FOREIGN KEY ([created_by]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+ALTER TABLE [cfl].[CFL_sap_entrega_descarte]
+ADD CONSTRAINT [FK_CFL_sap_entrega_descarte_restored_by_CFL_usuario]
+FOREIGN KEY ([restored_by]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
 
 /* =========================
-   LÍNEA A: DEDUPE RAW (BK + hash) - UNIQUE
+   LÃNEA A: DEDUPE RAW (BK + hash) - UNIQUE
    UNIQUE (source_system, BK..., row_hash)
 ========================= */
 CREATE UNIQUE INDEX [UX_likp_bk_hash]
@@ -985,13 +1026,13 @@ ON [cfl].[CFL_sap_lips_raw] ([source_system], [sap_numero_entrega], [sap_posicio
 GO
 
 /* =========================
-   VISTAS CURRENT (última versión por BK)
+   VISTAS CURRENT (Ãºltima versiÃ³n por BK)
 ========================= */
 
 /* =============================================================================
    CFL - Vistas CURRENT + AS_OF (LIKP + LIPS)
-   - CURRENT: última versión por BK usando row_status='ACTIVE'
-   - AS_OF: reconstrucción histórica por extracted_at <= @as_of_utc (NO usa row_status)
+   - CURRENT: Ãºltima versiÃ³n por BK usando row_status='ACTIVE'
+   - AS_OF: reconstrucciÃ³n histÃ³rica por extracted_at <= @as_of_utc (NO usa row_status)
 ============================================================================= */
 
 -- =========================================================
@@ -1516,3 +1557,4 @@ SELECT
   roles = (SELECT COUNT_BIG(1) FROM cfl.CFL_rol),
   permisos = (SELECT COUNT_BIG(1) FROM cfl.CFL_permiso),
   asignaciones = (SELECT COUNT_BIG(1) FROM cfl.CFL_rol_permiso);
+
