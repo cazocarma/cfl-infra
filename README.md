@@ -2,10 +2,15 @@
 
 Infraestructura local para desarrollo.
 
+## Variables de entorno centralizadas
+
+Se usa un unico archivo de variables: `cfl-infra/.env`.
+No se usan `.env` separados en `cfl-back` ni `cfl-front-ng`.
+
 ## Levantar todo desde infra
 
 1. Copiar `.env.example` a `.env`
-2. Cambiar `MSSQL_SA_PASSWORD` por una password fuerte
+2. Ajustar variables de entorno de backend/BD segun tu entorno
 3. Desde esta carpeta, levantar todo:
 
 ```bash
@@ -13,9 +18,21 @@ docker compose up -d
 ```
 
 Esto levanta:
-- `front-ng` en `http://localhost:3001`
-- `back` en `http://localhost:4000`
-- `sqlserver` en `localhost,1433`
+- `gateway` en `http://localhost` (puerto 80)
+- `front-ng` interno en red Docker (`front-ng:3000`)
+- `back` interno en red Docker (`back:4000`)
+
+El navegador solo necesita acceder al `gateway`. El gateway enruta:
+- `/` -> `front-ng`
+- `/api/*` -> `back`
+
+## Acceso desde LAN
+
+La app queda disponible en:
+
+```text
+http://IP_DEL_SERVIDOR
+```
 
 ## Comandos rapidos
 
@@ -23,40 +40,20 @@ Ejecutar todo desde `cfl-infra` (PowerShell):
 
 ```powershell
 Copy-Item .env.example .env
-docker compose build sqlserver
 docker compose up -d
-docker compose logs -f sqlserver
+docker compose logs -f gateway
 ```
 
-Reinicializar modelo de datos desde cero (borra datos del volumen):
+Detener servicios:
 
 ```powershell
-docker compose down -v
-docker compose up -d --build
+docker compose down
 ```
-
-## Inicializacion automatica del modelo de datos
-
-Al iniciar `sqlserver`, el contenedor ejecuta automaticamente:
-- `database/modelo-datos/UP.sql`
-- `database/modelo-datos/SEED.sql`
-
-Esto ocurre solo la primera vez por volumen, usando el marcador:
-- `/var/opt/mssql/.cfl_model_initialized_<MSSQL_DB>`
-
-Si necesitas volver a ejecutar inicializacion desde cero, elimina el volumen local:
-
-```bash
-docker compose down -v
-```
-
-`sqlserver` persiste datos en un volumen nombrado de Docker (`mssql-data`).
-
-## Nota de BD empresarial
-
-Por ahora `back` queda conectado al `sqlserver` local del compose.
-En el siguiente paso ajustamos variables y red para tu BD SQL Server empresarial.
 
 ## Carpeta database
 
-`database/` queda reservada para scripts SQL, respaldos o inicializacion de datos.
+`database/modelo-datos` queda organizado por rol:
+- `UP.sql`: modelo (schema/DDL).
+- `SEED.sql`: carga de datos iniciales por modulos (`seed/*.sql`).
+- `DOWN.sql`: eliminacion completa del esquema.
+- `ops/*.sql`: utilitarios/paches manuales (no forman parte del flujo base `UP + SEED`).

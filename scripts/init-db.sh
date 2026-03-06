@@ -4,8 +4,8 @@ set -euo pipefail
 TARGET_DB="${MSSQL_DB:-ControlFletesDev}"
 MARKER_FILE="/var/opt/mssql/.cfl_model_initialized_${TARGET_DB}"
 SCRIPTS_DIR="/var/opt/mssql/seed/modelo-datos"
-UP_SCRIPT="${SCRIPTS_DIR}/UP.sql"
-SEED_SCRIPT="${SCRIPTS_DIR}/SEED.sql"
+UP_SCRIPT="UP.sql"
+SEED_SCRIPT="SEED.sql"
 
 SQLCMD_BIN="/opt/mssql-tools18/bin/sqlcmd"
 if [ ! -x "${SQLCMD_BIN}" ]; then
@@ -33,7 +33,7 @@ if [ -f "${MARKER_FILE}" ]; then
   exit 0
 fi
 
-for script in "${UP_SCRIPT}" "${SEED_SCRIPT}"; do
+for script in "${SCRIPTS_DIR}/${UP_SCRIPT}" "${SCRIPTS_DIR}/${SEED_SCRIPT}"; do
   if [ ! -f "${script}" ]; then
     echo "ERROR: no se encontro script requerido: ${script}" >&2
     exit 1
@@ -55,6 +55,8 @@ fi
 
 echo "Asegurando base de datos destino: ${TARGET_DB}..."
 "${SQLCMD_BIN}" -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -Q "IF DB_ID(N'${TARGET_DB}') IS NULL CREATE DATABASE [${TARGET_DB}];"
+
+cd "${SCRIPTS_DIR}"
 
 echo "Ejecutando UP.sql en ${TARGET_DB}..."
 "${SQLCMD_BIN}" -S localhost -U sa -P "${MSSQL_SA_PASSWORD}" -C -d "${TARGET_DB}" -i "${UP_SCRIPT}"
