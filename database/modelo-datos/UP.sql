@@ -4,8 +4,8 @@
    - Crea tablas bajo [cfl].[*]
    - Crea Ã­ndices (sin prefijo de esquema en el nombre del Ã­ndice)
    - Crea FKs
-   - Crea Ã­ndices UNIQUE de deduplicaciÃ³n BK+hash (LÃ­nea A)
-   - Crea vistas "current" (Ãºltima versiÃ³n por BK) apuntando a tablas reales
+   - Crea Ã­ndices UNIQUE de deduplicación BK+hash (LÃ­nea A)
+   - Crea vistas "current" (Última versión por BK) apuntando a tablas reales
 ============================================================================ */
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'cfl')
@@ -262,7 +262,7 @@ ON [cfl].[CFL_sap_entrega_descarte] ([activo], [id_sap_entrega]);
 GO
 
 /* =========================
-   TABLAS: catÃ¡logo y operaciÃ³n
+   TABLAS: catÃ¡logo y operación
 ========================= */
 CREATE TABLE [cfl].[CFL_temporada] (
     [id_temporada] BIGINT NOT NULL IDENTITY UNIQUE,
@@ -1026,13 +1026,13 @@ ON [cfl].[CFL_sap_lips_raw] ([source_system], [sap_numero_entrega], [sap_posicio
 GO
 
 /* =========================
-   VISTAS CURRENT (Ãºltima versiÃ³n por BK)
+   VISTAS CURRENT (Última versión por BK)
 ========================= */
 
 /* =============================================================================
    CFL - Vistas CURRENT + AS_OF (LIKP + LIPS)
-   - CURRENT: Ãºltima versiÃ³n por BK usando row_status='ACTIVE'
-   - AS_OF: reconstrucciÃ³n histÃ³rica por extracted_at <= @as_of_utc (NO usa row_status)
+   - CURRENT: Última versión por BK usando row_status='ACTIVE'
+   - AS_OF: reconstrucción histórica por extracted_at <= @as_of_utc (NO usa row_status)
 ============================================================================= */
 
 -- =========================================================
@@ -1279,46 +1279,6 @@ SELECT
     extracted_at_base,
     execution_id_base
 FROM out_base_sin_hijos;
-GO
-
-
--- =========================================================
--- LIPS RESUELTA
--- Compatibilidad sobre vw_cfl_sap_lips_current
--- =========================================================
-
-SET ANSI_NULLS ON
-GO
-
-SET QUOTED_IDENTIFIER ON
-GO
-
-
-CREATE OR ALTER VIEW [cfl].[vw_cfl_sap_lips_resuelta]
-AS
-SELECT
-    source_system,
-    sap_numero_entrega,
-    sap_posicion_raiz,
-    sap_posicion_efectiva,
-    sap_posicion_superior,
-    sap_lote,
-    raw_id,
-    extracted_at,
-    row_hash,
-    row_status,
-    execution_id,
-    created_at,
-    sap_material,
-    sap_cantidad_entregada,
-    sap_unidad_peso,
-    sap_denominacion_material,
-    sap_centro,
-    sap_almacen,
-    raw_id_base,
-    extracted_at_base,
-    execution_id_base
-FROM [cfl].[vw_cfl_sap_lips_current];
 GO
 
 -- =========================================================

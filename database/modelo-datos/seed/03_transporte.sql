@@ -9,37 +9,6 @@ SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 DECLARE @now DATETIME2(0) = SYSDATETIME();
 
-;WITH src(sap_codigo, rut, razon_social, nombre_rep, correo, telefono, activo) AS (
-  SELECT *
-  FROM (VALUES
-  (NULL, N'12373615-K', N'LUIS ALEJANDRO TORRES PARRA', NULL, NULL, NULL, 1),
-  (NULL, N'14017534-K', N'ANGELICA DEL CARMEN LABRA MALD', NULL, NULL, N'89206536', 1),
-  (NULL, N'15953537-1', N'FELIPE MARIN FUENTES', N'FELIPE MARIN', NULL, NULL, 1),
-  (NULL, N'53219990-5', N'SUCESION OSVALDO ERBETTA', NULL, NULL, N'72366987', 1),
-  (NULL, N'76406384-8', N'SOC. DE TRANS.AGUILERA LATINSU', NULL, NULL, N'81485071', 1),
-  (NULL, N'76673592-4', N'TRANS.ANDREA CORNEJO PARRAGUEZ', NULL, NULL, N'954151478', 1),
-  (NULL, N'76684363-8', N'TRANS. JAVIER TORO E.I.R.L.', NULL, NULL, N'974778216', 1),
-  (NULL, N'78597540-5', N'TRANSPORTES PIEMONTE', NULL, NULL, N'722714529', 1),
-  (NULL, N'78918420-8', N'AGRICOLA SAA LTDA', NULL, NULL, NULL, 1),
-  (NULL, N'9647113-0', N'ARTURO VENEGAS', NULL, NULL, NULL, 1)
-  ) v(sap_codigo, rut, razon_social, nombre_rep, correo, telefono, activo)
-)
-MERGE cfl.CFL_empresa_transporte AS t
-USING src AS s
-ON t.rut = s.rut
-WHEN MATCHED THEN
-  UPDATE SET
-    t.sap_codigo = s.sap_codigo,
-    t.razon_social = s.razon_social,
-    t.nombre_rep = s.nombre_rep,
-    t.correo = s.correo,
-    t.telefono = s.telefono,
-    t.activo = CAST(s.activo AS BIT),
-    t.updated_at = @now
-WHEN NOT MATCHED THEN
-  INSERT (sap_codigo, rut, razon_social, nombre_rep, correo, telefono, activo, created_at, updated_at)
-  VALUES (s.sap_codigo, s.rut, s.razon_social, s.nombre_rep, s.correo, s.telefono, CAST(s.activo AS BIT), @now, @now);
-
 ;WITH src(sap_id_fiscal, sap_nombre, telefono, activo) AS (
   SELECT *
   FROM (VALUES
