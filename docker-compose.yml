@@ -1,27 +1,72 @@
 name: greenvic-cfl
 
+x-node-service: &node-service
+  image: node:20-bookworm-slim
+  init: true
+  restart: unless-stopped
+  pull_policy: if_not_present
+  security_opt:
+    - no-new-privileges:true
+  environment:
+    NODE_ENV: "development"
+    NPM_CONFIG_FETCH_RETRIES: "5"
+    NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
+    NPM_CONFIG_AUDIT: "false"
+    NPM_CONFIG_FUND: "false"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
 services:
   gateway:
     image: nginx:1.27-alpine
-    container_name: cfl-gateway
+    init: true
+    restart: unless-stopped
+    pull_policy: if_not_present
     ports:
       - "80:80"
     volumes:
       - ./nginx/dev-gateway.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - front-ng
-      - back
+      front-ng:
+        condition: service_healthy
+      back:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   front-ng:
-    image: node:20-slim
-    working_dir: /workspace/cfl-front-ng
-    container_name: cfl-front-ng
+    build:
+      context: ../cfl-front-ng
+      dockerfile: Dockerfile
+    image: cfl-front-ng:local
+    init: true
+    restart: unless-stopped
+    pull_policy: if_not_present
+    security_opt:
+      - no-new-privileges:true
     expose:
-      - "3000"
-    volumes:
-      - ../cfl-front-ng:/workspace/cfl-front-ng
-      - /workspace/cfl-front-ng/node_modules
-      - npm-cache:/root/.npm
+      - "80"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  back:
+    <<: *node-service
+    working_dir: /workspace/cfl-back
+    env_file:
+      - ./.env
     environment:
       NODE_ENV: "development"
       NPM_CONFIG_FETCH_RETRIES: "5"
@@ -30,61 +75,64 @@ services:
       NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
-    command: >
-      sh -c "if [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then npm install --prefer-offline; fi && npm start"
-    depends_on:
-      - back
-
-  back:
-    image: node:20-slim
-    working_dir: /workspace/cfl-back
-    container_name: cfl-back
-    env_file:
-      - ./.env
+      PORT: "${PORT:-4000}"
+      CORS_ORIGIN: "${CORS_ORIGIN:-http://localhost}"
+      JWT_SECRET: "${JWT_SECRET:-replace-with-a-long-random-dev-secret}"
+      DB_HOST: "${DB_HOST:-host.docker.internal}"
+      DB_PORT: "${DB_PORT:-1433}"
+      DB_USER: "${DB_USER:-sa}"
+      DB_PASSWORD: "${DB_PASSWORD:-ChangeThisStrongPass!123}"
+      DB_NAME: "${DB_NAME:-ControlFletesDev}"
     expose:
       - "4000"
     volumes:
       - ../cfl-back:/workspace/cfl-back
-      - /workspace/cfl-back/node_modules
+      - back-node_modules:/workspace/cfl-back/node_modules
       - npm-cache:/root/.npm
-    environment:
-      NODE_ENV: "development"
-      PORT: "4000"
-      NPM_CONFIG_FETCH_RETRIES: "5"
-      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
-      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
-      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
-      NPM_CONFIG_AUDIT: "false"
-      NPM_CONFIG_FUND: "false"
     command: >
-      sh -c "if [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then npm install --prefer-offline; fi && npm run dev"
+      sh -lc "if [ ! -f node_modules/express/package.json ] || [ ! -f node_modules/mssql/package.json ]; then npm install --prefer-offline --no-audit --no-fund; fi && npm run dev"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:4000/health',r=>process.exit(r.statusCode>=200&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
-  # sqlserver:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   container_name: cfl-sqlserver-dev
-  #   ports:
-  #     - "${MSSQL_PORT:-1433}:1433"
-  #   environment:
-  #     ACCEPT_EULA: "Y"
-  #     MSSQL_PID: "Developer"
-  #     MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
-  #     MSSQL_DB: "${MSSQL_DB:-ControlFletesDev}"
-  #   volumes:
-  #     - mssql-data:/var/opt/mssql
-  #     - ./database:/var/opt/mssql/seed
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD-SHELL",
-  #         "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\"",
-  #       ]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 20
-  #     start_period: 40s
+  sqlserver:
+    profiles: ["db"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${MSSQL_PORT:-1433}:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_MEMORY_LIMIT_MB: "${MSSQL_MEMORY_LIMIT_MB:-1024}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      MSSQL_DB: "${MSSQL_DB:-ControlFletesDev}"
+    volumes:
+      - mssql-data:/var/opt/mssql
+      - ./database:/var/opt/mssql/seed:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   mssql-data:
   npm-cache:
+  back-node_modules:
