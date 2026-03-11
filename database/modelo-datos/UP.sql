@@ -327,6 +327,7 @@ CREATE TABLE [cfl].[Folio] (
     [IdFolio]               BIGINT NOT NULL IDENTITY UNIQUE,
     [IdUsuarioCierre]       BIGINT       NULL,
     [IdCentroCosto]         BIGINT       NOT NULL,
+    [IdCuentaMayor]         BIGINT       NULL,
     [IdTemporada]           BIGINT       NOT NULL,
     [FolioNumero]           NVARCHAR(30)  NOT NULL,
     [PeriodoDesde]          DATETIME2(0) NULL,
@@ -342,8 +343,8 @@ CREATE TABLE [cfl].[Folio] (
 );
 GO
 
-CREATE UNIQUE INDEX [UQ_Folio_TemporadaCc]
-ON [cfl].[Folio] ([IdTemporada], [IdCentroCosto], [FolioNumero]);
+CREATE UNIQUE INDEX [UQ_Folio_TemporadaCcCuenta]
+ON [cfl].[Folio] ([IdTemporada], [IdCentroCosto], [IdCuentaMayor], [FolioNumero]);
 GO
 
 CREATE TABLE [cfl].[NodoLogistico] (
@@ -466,13 +467,32 @@ CREATE TABLE [cfl].[TipoFlete] (
     [SapCodigo]     NVARCHAR(20)  NOT NULL,
     [Nombre]        NVARCHAR(100) NOT NULL,
     [Activo]        BIT          NOT NULL,
-    [IdCentroCosto] BIGINT       NOT NULL,
     PRIMARY KEY ([IdTipoFlete])
 );
 GO
 
 CREATE UNIQUE INDEX [UQ_TipoFlete_SapCodigo]
 ON [cfl].[TipoFlete] ([SapCodigo]);
+GO
+
+CREATE TABLE [cfl].[ImputacionFlete] (
+    [IdImputacionFlete]  BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdTipoFlete]        BIGINT       NOT NULL,
+    [IdCentroCosto]      BIGINT       NOT NULL,
+    [IdCuentaMayor]      BIGINT       NOT NULL,
+    [Activo]             BIT          NOT NULL,
+    [FechaCreacion]      DATETIME2(0) NOT NULL,
+    [FechaActualizacion] DATETIME2(0) NOT NULL,
+    PRIMARY KEY ([IdImputacionFlete])
+);
+GO
+
+CREATE UNIQUE INDEX [UQ_ImputacionFlete_Combo]
+ON [cfl].[ImputacionFlete] ([IdTipoFlete], [IdCentroCosto], [IdCuentaMayor]);
+GO
+
+CREATE INDEX [IX_ImputacionFlete_TipoActivo]
+ON [cfl].[ImputacionFlete] ([IdTipoFlete], [Activo], [IdCentroCosto], [IdCuentaMayor]);
 GO
 
 CREATE TABLE [cfl].[Tarifa] (
@@ -565,6 +585,7 @@ CREATE TABLE [cfl].[CabeceraFlete] (
     [MontoAplicado]      DECIMAL(18,2) NOT NULL,
     [Observaciones]      NVARCHAR(200)  NULL,
     [IdCuentaMayor]      BIGINT        NULL,
+    [IdImputacionFlete]  BIGINT        NULL,
     [IdCentroCosto]      BIGINT        NOT NULL,
     [IdProductor]        BIGINT        NULL,
     [IdFolio]            BIGINT        NULL,
@@ -588,6 +609,10 @@ GO
 
 CREATE INDEX [IX_CabeceraFlete_IdCuentaMayor]
 ON [cfl].[CabeceraFlete] ([IdCuentaMayor]);
+GO
+
+CREATE INDEX [IX_CabeceraFlete_IdImputacionFlete]
+ON [cfl].[CabeceraFlete] ([IdImputacionFlete]);
 GO
 
 CREATE INDEX [IX_CabeceraFlete_IdProductor]
@@ -911,6 +936,13 @@ FOREIGN KEY ([IdCentroCosto]) REFERENCES [cfl].[CentroCosto] ([IdCentroCosto])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
+-- Folio → CuentaMayor
+ALTER TABLE [cfl].[Folio]
+ADD CONSTRAINT [FK_Folio_CuentaMayor]
+FOREIGN KEY ([IdCuentaMayor]) REFERENCES [cfl].[CuentaMayor] ([IdCuentaMayor])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
 -- Folio → Temporada
 ALTER TABLE [cfl].[Folio]
 ADD CONSTRAINT [FK_Folio_Temporada]
@@ -967,10 +999,24 @@ FOREIGN KEY ([IdEmpresaTransporte]) REFERENCES [cfl].[EmpresaTransporte] ([IdEmp
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
--- TipoFlete → CentroCosto
-ALTER TABLE [cfl].[TipoFlete]
-ADD CONSTRAINT [FK_TipoFlete_CentroCosto]
+-- ImputacionFlete → TipoFlete
+ALTER TABLE [cfl].[ImputacionFlete]
+ADD CONSTRAINT [FK_ImputacionFlete_TipoFlete]
+FOREIGN KEY ([IdTipoFlete]) REFERENCES [cfl].[TipoFlete] ([IdTipoFlete])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- ImputacionFlete → CentroCosto
+ALTER TABLE [cfl].[ImputacionFlete]
+ADD CONSTRAINT [FK_ImputacionFlete_CentroCosto]
 FOREIGN KEY ([IdCentroCosto]) REFERENCES [cfl].[CentroCosto] ([IdCentroCosto])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- ImputacionFlete → CuentaMayor
+ALTER TABLE [cfl].[ImputacionFlete]
+ADD CONSTRAINT [FK_ImputacionFlete_CuentaMayor]
+FOREIGN KEY ([IdCuentaMayor]) REFERENCES [cfl].[CuentaMayor] ([IdCuentaMayor])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
@@ -1055,6 +1101,13 @@ GO
 ALTER TABLE [cfl].[CabeceraFlete]
 ADD CONSTRAINT [FK_CabeceraFlete_CuentaMayor]
 FOREIGN KEY ([IdCuentaMayor]) REFERENCES [cfl].[CuentaMayor] ([IdCuentaMayor])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- CabeceraFlete → ImputacionFlete
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_ImputacionFlete]
+FOREIGN KEY ([IdImputacionFlete]) REFERENCES [cfl].[ImputacionFlete] ([IdImputacionFlete])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 

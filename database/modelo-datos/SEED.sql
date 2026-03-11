@@ -3,7 +3,7 @@
    Rol: orquestar la carga de datos iniciales por capas.
 
    Orden de ejecucion:
-   1) Catalogos base
+   1) Catalogos base (incluye ImputacionFlete)
    2) Logistica y tarifas
    3) Maestros de transporte
    4) Seguridad (roles, usuarios, permisos)

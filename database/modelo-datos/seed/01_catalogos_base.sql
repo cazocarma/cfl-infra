@@ -34,26 +34,26 @@ WHEN NOT MATCHED THEN
 ;WITH src(SapCodigo, nombre, activo) AS (
   SELECT *
   FROM (VALUES
-    (N'GC1010301', N'POR DEFINIR', 1),
-    (N'GC2010103', N'Gerencia Operaciones | Plta Maipo', 1),
-    (N'GC2010401', N'Gerencia Operaciones | Plta Maipo', 1),
-    (N'GC2030106', N'Gerencia Operaciones | Plta Placill', 1),
-    (N'GC2030108', N'Gerencia Operaciones | Plta Placill', 1),
-    (N'GC2030301', N'Gerencia Operaciones | Plta Placill', 1),
-    (N'GC2030401', N'Gerencia Operaciones | Plta Placill', 1),
-    (N'GC2040301', N'Gerencia Operaciones | Plta Organic', 1),
-    (N'GC2040401', N'Gerencia Operaciones | Plta Organic', 1),
-    (N'GC2050104', N'Gerencia Operaciones | Plta LA', 1),
-    (N'GC2050301', N'Gerencia Operaciones | Plta LA', 1),
-    (N'GC2050401', N'Gerencia Operaciones | Plta LA', 1),
-    (N'GC2070101', N'Gerencia Operaciones | Bodega', 1),
-    (N'GC2070201', N'Gerencia Operaciones | Bodega', 1),
-    (N'GC2070301', N'Gerencia Operaciones | Bodega', 1),
-    (N'GC3020101', N'Gerencia Comercial | Transporte', 1),
-    (N'GC3040101', N'POR DEFINIR', 1),
-    (N'GC5020101', N'POR DEFINIR', 1),
-    (N'GC5020201', N'POR DEFINIR', 1),
-    (N'GC5020301', N'POR DEFINIR', 1)
+    (N'GC1010301', N'POR DEFINIR', 1), -- compatibilidad historica
+    (N'GC2010103', N'Proceso', 1),
+    (N'GC1070101', N'Bodega Maipo', 1),
+    (N'GC2010701', N'Linea Produccion Mercado Interno', 1),
+    (N'GC2010401', N'Maipo ATM', 1),
+    (N'GC5020101', N'Programa Maipo', 1),
+    (N'GC2030106', N'Proceso', 1),
+    (N'GC1070201', N'Bodega Placilla', 1),
+    (N'GC2030301', N'Placilla Usda/Sag', 1),
+    (N'GC2030401', N'Linea Produccion Uva', 1),
+    (N'GC2030601', N'Linea Produccion Mercado Interno', 1),
+    (N'GC2040401', N'Organik ATM', 1),
+    (N'GC2040301', N'Organik Usda/Sag', 1),
+    (N'GC3020101', N'Exp-Com-Comex', 1),
+    (N'GC5020201', N'Programa Placilla', 1),
+    (N'GC2050104', N'Proceso', 1),
+    (N'GC1070301', N'Bodega Los Angeles', 1),
+    (N'GC2050301', N'Los Angeles Usda/Sag', 1),
+    (N'GC2050401', N'Los Angeles ATM', 1),
+    (N'GC5020301', N'Programa Los Angeles', 1)
   ) v(SapCodigo, nombre, activo)
 )
 MERGE cfl.CentroCosto AS t
@@ -70,11 +70,11 @@ WHEN NOT MATCHED THEN
 ;WITH src(codigo, glosa) AS (
   SELECT *
   FROM (VALUES
-  (N'51020314', N''),
-  (N'51020315', N''),
-  (N'51020316', N''),
-  (N'51020317', N''),
-  (N'51020318', N''),
+  (N'51020314', N'FLETES INTERPLANTA / FRUTA EXPORTACION'),
+  (N'51020315', N'FLETES MATERIALES / TRANSPORTE EXPORTACION'),
+  (N'51020316', N'FLETES MERCADO NACIONAL'),
+  (N'51020317', N'FLETES ATMOSFERA CONTROLADA'),
+  (N'51020318', N'FLETES MUESTRAS USDA'),
   (N'51020502', N''),
   (N'61010221', N'')
   ) v(codigo, glosa)
@@ -232,47 +232,92 @@ WHEN NOT MATCHED THEN
   INSERT (glosa)
   VALUES (s.glosa);
 
-;WITH src(SapCodigo, Nombre, Activo, CentroSapCodigo) AS (
+;WITH src(SapCodigo, Nombre, Activo) AS (
   SELECT *
   FROM (VALUES
-  (N'0001', N'TRASLADO DE FRUTA', 1, N'GC1010301'),
-  (N'0002', N'TRASLADO DE MATERIALES', 1, N'GC1010301'),
-  (N'0003', N'TRASLADO PUERTO - AEROPUERTO', 1, N'GC1010301'),
-  (N'0004', N'TRASLADO INTERPLANTA', 1, N'GC1010301'),
-  (N'0005', N'TRASLADO MERCADO NACIONAL', 1, N'GC1010301'),
-  (N'0006', N'TRASLADO MUESTRA USDA', 1, N'GC1010301')
-  ) v(SapCodigo, Nombre, Activo, CentroSapCodigo)
-), resolved AS (
-  SELECT
-    s.SapCodigo,
-    s.Nombre,
-    s.Activo,
-    IdCentroCosto = COALESCE(ccByCode.IdCentroCosto, ccFallback.IdCentroCosto)
-  FROM src s
-  OUTER APPLY (
-    SELECT TOP 1 cc.IdCentroCosto
-    FROM cfl.CentroCosto cc
-    WHERE cc.SapCodigo = s.CentroSapCodigo
-    ORDER BY cc.IdCentroCosto ASC
-  ) ccByCode
-  OUTER APPLY (
-    SELECT TOP 1 cc.IdCentroCosto
-    FROM cfl.CentroCosto cc
-    WHERE cc.Nombre = N'POR DEFINIR'
-    ORDER BY cc.IdCentroCosto ASC
-  ) ccFallback
+  (N'0001', N'TRASLADO DE FRUTA', 1),
+  (N'0002', N'TRASLADO DE MATERIALES', 1),
+  (N'0003', N'TRASLADO PUERTO - AEROPUERTO', 1),
+  (N'0004', N'TRASLADO INTERPLANTA', 1),
+  (N'0005', N'TRASLADO MERCADO NACIONAL', 1),
+  (N'0006', N'TRASLADO MUESTRA USDA', 1)
+  ) v(SapCodigo, Nombre, Activo)
 )
 MERGE cfl.TipoFlete AS t
-USING resolved AS s
+USING src AS s
 ON t.SapCodigo = s.SapCodigo
 WHEN MATCHED THEN
   UPDATE SET
     t.Nombre = s.Nombre,
+    t.Activo = CAST(s.Activo AS BIT)
+WHEN NOT MATCHED THEN
+  INSERT (SapCodigo, Nombre, Activo)
+  VALUES (s.SapCodigo, s.Nombre, CAST(s.Activo AS BIT));
+
+;WITH src(TipoSapCodigo, CentroSapCodigo, CuentaCodigo, Activo) AS (
+  SELECT *
+  FROM (VALUES
+  (N'0004', N'GC2010103', N'51020314', 1),
+  (N'0002', N'GC1070101', N'51020315', 1),
+  (N'0005', N'GC2010701', N'51020316', 1),
+  (N'0004', N'GC2010401', N'51020317', 1),
+  (N'0001', N'GC5020101', N'51020314', 1),
+  (N'0004', N'GC2030106', N'51020314', 1),
+  (N'0002', N'GC1070201', N'51020315', 1),
+  (N'0006', N'GC2030301', N'51020318', 1),
+  (N'0004', N'GC2030401', N'51020314', 1),
+  (N'0005', N'GC2030601', N'51020316', 1),
+  (N'0004', N'GC2040401', N'51020317', 1),
+  (N'0006', N'GC2040301', N'51020318', 1),
+  (N'0003', N'GC3020101', N'51020315', 1),
+  (N'0001', N'GC5020201', N'51020314', 1),
+  (N'0004', N'GC2050104', N'51020314', 1),
+  (N'0002', N'GC1070301', N'51020315', 1),
+  (N'0006', N'GC2050301', N'51020318', 1),
+  (N'0004', N'GC2050401', N'51020317', 1),
+  (N'0001', N'GC5020301', N'51020314', 1)
+  ) v(TipoSapCodigo, CentroSapCodigo, CuentaCodigo, Activo)
+),
+resolved AS (
+  SELECT
+    tf.IdTipoFlete,
+    cc.IdCentroCosto,
+    cm.IdCuentaMayor,
+    s.Activo
+  FROM src s
+  INNER JOIN cfl.TipoFlete tf
+    ON tf.SapCodigo = s.TipoSapCodigo
+  INNER JOIN cfl.CentroCosto cc
+    ON cc.SapCodigo = s.CentroSapCodigo
+  INNER JOIN cfl.CuentaMayor cm
+    ON cm.Codigo = s.CuentaCodigo
+)
+MERGE cfl.ImputacionFlete AS t
+USING resolved AS s
+ON t.IdTipoFlete = s.IdTipoFlete
+ AND t.IdCentroCosto = s.IdCentroCosto
+ AND t.IdCuentaMayor = s.IdCuentaMayor
+WHEN MATCHED THEN
+  UPDATE SET
     t.Activo = CAST(s.Activo AS BIT),
-    t.IdCentroCosto = s.IdCentroCosto
-WHEN NOT MATCHED AND s.IdCentroCosto IS NOT NULL THEN
-  INSERT (SapCodigo, Nombre, Activo, IdCentroCosto)
-  VALUES (s.SapCodigo, s.Nombre, CAST(s.Activo AS BIT), s.IdCentroCosto);
+    t.FechaActualizacion = @now
+WHEN NOT MATCHED THEN
+  INSERT (
+    IdTipoFlete,
+    IdCentroCosto,
+    IdCuentaMayor,
+    Activo,
+    FechaCreacion,
+    FechaActualizacion
+  )
+  VALUES (
+    s.IdTipoFlete,
+    s.IdCentroCosto,
+    s.IdCuentaMayor,
+    CAST(s.Activo AS BIT),
+    @now,
+    @now
+  );
 
 ;WITH src(nombre, categoria, CapacidadKg, RequiereTemperatura, descripcion, activo) AS (
   SELECT *
