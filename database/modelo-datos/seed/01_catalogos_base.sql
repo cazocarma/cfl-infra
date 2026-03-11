@@ -10,123 +10,62 @@ SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 DECLARE @now DATETIME2(0) = SYSDATETIME();
 
-;WITH src(codigo, nombre, fecha_inicio, fecha_fin, activa, cerrada) AS (
+;WITH src(codigo, nombre, FechaInicio, FechaFin, activa, cerrada) AS (
   SELECT *
   FROM (VALUES
   (N'2025-2026', N'Temporada 2025-2026', N'2025-08-25 00:00:00', N'2026-08-24 23:59:59', 1, 0)
-  ) v(codigo, nombre, fecha_inicio, fecha_fin, activa, cerrada)
+  ) v(codigo, nombre, FechaInicio, FechaFin, activa, cerrada)
 )
-MERGE cfl.CFL_temporada AS t
+MERGE cfl.Temporada AS t
 USING src AS s
 ON t.codigo = s.codigo
 WHEN MATCHED THEN
   UPDATE SET
     t.nombre = s.nombre,
-    t.fecha_inicio = CAST(s.fecha_inicio AS DATETIME2(0)),
-    t.fecha_fin = CAST(s.fecha_fin AS DATETIME2(0)),
+    t.FechaInicio = CAST(s.FechaInicio AS DATETIME2(0)),
+    t.FechaFin = CAST(s.FechaFin AS DATETIME2(0)),
     t.activa = CAST(s.activa AS BIT),
     t.cerrada = CAST(s.cerrada AS BIT),
-    t.updated_at = @now
+    t.FechaActualizacion = @now
 WHEN NOT MATCHED THEN
-  INSERT (codigo, nombre, fecha_inicio, fecha_fin, activa, cerrada, created_at, updated_at)
-  VALUES (s.codigo, s.nombre, CAST(s.fecha_inicio AS DATETIME2(0)), CAST(s.fecha_fin AS DATETIME2(0)), CAST(s.activa AS BIT), CAST(s.cerrada AS BIT), @now, @now);
+  INSERT (codigo, nombre, FechaInicio, FechaFin, activa, cerrada, FechaCreacion, FechaActualizacion)
+  VALUES (s.codigo, s.nombre, CAST(s.FechaInicio AS DATETIME2(0)), CAST(s.FechaFin AS DATETIME2(0)), CAST(s.activa AS BIT), CAST(s.cerrada AS BIT), @now, @now);
 
-;WITH src(sap_codigo, nombre, activo) AS (
+;WITH src(SapCodigo, nombre, activo) AS (
   SELECT *
   FROM (VALUES
-  (N'GC2010101', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010102', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010103', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010104', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010201', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010301', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010401', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010501', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010502', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010601', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010701', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010801', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010802', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010803', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2010804', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC2020101', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020301', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020302', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020303', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020304', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020305', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020306', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020307', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020308', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020401', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020501', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2020502', N'Gerencia Operaciones | Plta FSD', 1),
-  (N'GC2030101', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030102', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030103', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030104', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030105', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030106', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030107', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030108', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030201', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030301', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030401', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030501', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030601', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030701', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030702', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2030703', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC2040101', N'Gerencia Operaciones | Plta Organic', 1),
-  (N'GC2040201', N'Gerencia Operaciones | Plta Organic', 1),
-  (N'GC2040301', N'Gerencia Operaciones | Plta Organic', 1),
-  (N'GC2040401', N'Gerencia Operaciones | Plta Organic', 1),
-  (N'GC2040501', N'Gerencia Operaciones | Plta Organik', 1),
-  (N'GC2040502', N'Gerencia Operaciones | Plta Organik', 1),
-  (N'GC2040503', N'Gerencia Operaciones | Plta Organik', 1),
-  (N'GC2050101', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050102', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050103', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050104', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050105', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050106', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050201', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050301', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050401', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050450', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050501', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050502', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050503', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2050601', N'Gerencia Operaciones | Plta LA', 1),
-  (N'GC2060101', N'Gerencia Operaciones | Mat Cosecha', 1),
-  (N'GC2060201', N'Gerencia Operaciones | Mat Cosecha', 1),
-  (N'GC2060301', N'Gerencia Operaciones | Mat Cosecha', 1),
-  (N'GC2070101', N'Gerencia Operaciones | Bodega', 1),
-  (N'GC2070201', N'Gerencia Operaciones | Bodega', 1),
-  (N'GC2070301', N'Gerencia Operaciones | Bodega', 1),
-  (N'GC3020101', N'Gerencia Comercial | Transporte', 1),
-  (N'GC6010101', N'Gerencia Agricola | Campo', 1),
-  (N'GC6010102', N'Gerencia Agricola | Campo', 1),
-  (N'GC6010103', N'Gerencia Agricola | Campo', 1),
-  (N'GC6010104', N'Gerencia Agricola | Campo', 1),
-  (N'GC6010105', N'Gerencia Agricola | Campo', 1),
-  (N'GC6010201', N'Gerencia Agricola | Campo', 1),
-  (N'GC7020101', N'Gerencia Operaciones | Plta Maipo', 1),
-  (N'GC7030101', N'Gerencia Operaciones | Plta Placill', 1),
-  (N'GC7040101', N'Gerencia Operaciones | Plta LA', 1),
-  (N'POR DEFINIR', N'POR DEFINIR', 1)
-  ) v(sap_codigo, nombre, activo)
+    (N'GC1010301', N'POR DEFINIR', 1),
+    (N'GC2010103', N'Gerencia Operaciones | Plta Maipo', 1),
+    (N'GC2010401', N'Gerencia Operaciones | Plta Maipo', 1),
+    (N'GC2030106', N'Gerencia Operaciones | Plta Placill', 1),
+    (N'GC2030108', N'Gerencia Operaciones | Plta Placill', 1),
+    (N'GC2030301', N'Gerencia Operaciones | Plta Placill', 1),
+    (N'GC2030401', N'Gerencia Operaciones | Plta Placill', 1),
+    (N'GC2040301', N'Gerencia Operaciones | Plta Organic', 1),
+    (N'GC2040401', N'Gerencia Operaciones | Plta Organic', 1),
+    (N'GC2050104', N'Gerencia Operaciones | Plta LA', 1),
+    (N'GC2050301', N'Gerencia Operaciones | Plta LA', 1),
+    (N'GC2050401', N'Gerencia Operaciones | Plta LA', 1),
+    (N'GC2070101', N'Gerencia Operaciones | Bodega', 1),
+    (N'GC2070201', N'Gerencia Operaciones | Bodega', 1),
+    (N'GC2070301', N'Gerencia Operaciones | Bodega', 1),
+    (N'GC3020101', N'Gerencia Comercial | Transporte', 1),
+    (N'GC3040101', N'POR DEFINIR', 1),
+    (N'GC5020101', N'POR DEFINIR', 1),
+    (N'GC5020201', N'POR DEFINIR', 1),
+    (N'GC5020301', N'POR DEFINIR', 1)
+  ) v(SapCodigo, nombre, activo)
 )
-MERGE cfl.CFL_centro_costo AS t
+MERGE cfl.CentroCosto AS t
 USING src AS s
-ON t.sap_codigo = s.sap_codigo
+ON t.SapCodigo = s.SapCodigo
 WHEN MATCHED THEN
   UPDATE SET
     t.nombre = s.nombre,
     t.activo = CAST(s.activo AS BIT)
 WHEN NOT MATCHED THEN
-  INSERT (sap_codigo, nombre, activo)
-  VALUES (s.sap_codigo, s.nombre, CAST(s.activo AS BIT));
+  INSERT (SapCodigo, nombre, activo)
+  VALUES (s.SapCodigo, s.nombre, CAST(s.activo AS BIT));
 
 ;WITH src(codigo, glosa) AS (
   SELECT *
@@ -140,7 +79,7 @@ WHEN NOT MATCHED THEN
   (N'61010221', N'')
   ) v(codigo, glosa)
 )
-MERGE cfl.CFL_cuenta_mayor AS t
+MERGE cfl.CuentaMayor AS t
 USING src AS s
 ON t.codigo = s.codigo
 WHEN MATCHED THEN
@@ -149,7 +88,7 @@ WHEN NOT MATCHED THEN
   INSERT (codigo, glosa)
   VALUES (s.codigo, s.glosa);
 
-;WITH src(descripcion, observacion, activo) AS (
+;WITH src(descripcion, Observacion, activo) AS (
   SELECT *
   FROM (VALUES
   (N'ALAMBRE AMARRA', NULL, 1),
@@ -244,18 +183,18 @@ WHEN NOT MATCHED THEN
   (N'TRASLADO PORTON METALICO', NULL, 1),
   (N'TURBA SUNSHINEE', NULL, 1),
   (N'VIAJE DESECHO', NULL, 1)
-  ) v(descripcion, observacion, activo)
+  ) v(descripcion, Observacion, activo)
 )
-MERGE cfl.CFL_detalle_viaje AS t
+MERGE cfl.DetalleViaje AS t
 USING src AS s
 ON t.descripcion = s.descripcion
 WHEN MATCHED THEN
   UPDATE SET
-    t.observacion = s.observacion,
+    t.Observacion = s.Observacion,
     t.activo = CAST(s.activo AS BIT)
 WHEN NOT MATCHED THEN
-  INSERT (descripcion, observacion, activo)
-  VALUES (s.descripcion, s.observacion, CAST(s.activo AS BIT));
+  INSERT (descripcion, Observacion, activo)
+  VALUES (s.descripcion, s.Observacion, CAST(s.activo AS BIT));
 
 ;WITH src(glosa) AS (
   SELECT *
@@ -286,45 +225,56 @@ WHEN NOT MATCHED THEN
   (N'UVA')
   ) v(glosa)
 )
-MERGE cfl.CFL_especie AS t
+MERGE cfl.Especie AS t
 USING src AS s
 ON t.glosa = s.glosa
 WHEN NOT MATCHED THEN
   INSERT (glosa)
   VALUES (s.glosa);
 
-;WITH src(sap_codigo, nombre, activo, centro_sap_codigo) AS (
+;WITH src(SapCodigo, Nombre, Activo, CentroSapCodigo) AS (
   SELECT *
   FROM (VALUES
-  (N'0001', N'TRASLADO DE FRUTA', 1, N'POR DEFINIR'),
-  (N'0002', N'TRASLADO DE MATERIALES', 1, N'POR DEFINIR'),
-  (N'0003', N'TRASLADO PUERTO - AEROPUERTO', 1, N'POR DEFINIR'),
-  (N'0004', N'TRASLADO INTERPLANTA', 1, N'POR DEFINIR'),
-  (N'0005', N'TRASLADO MERCADO NACIONAL', 1, N'POR DEFINIR'),
-  (N'0006', N'TRASLADO MUESTRA USDA', 1, N'POR DEFINIR')
-  ) v(sap_codigo, nombre, activo, centro_sap_codigo)
+  (N'0001', N'TRASLADO DE FRUTA', 1, N'GC1010301'),
+  (N'0002', N'TRASLADO DE MATERIALES', 1, N'GC1010301'),
+  (N'0003', N'TRASLADO PUERTO - AEROPUERTO', 1, N'GC1010301'),
+  (N'0004', N'TRASLADO INTERPLANTA', 1, N'GC1010301'),
+  (N'0005', N'TRASLADO MERCADO NACIONAL', 1, N'GC1010301'),
+  (N'0006', N'TRASLADO MUESTRA USDA', 1, N'GC1010301')
+  ) v(SapCodigo, Nombre, Activo, CentroSapCodigo)
 ), resolved AS (
   SELECT
-    s.sap_codigo,
-    s.nombre,
-    s.activo,
-    cc.id_centro_costo
+    s.SapCodigo,
+    s.Nombre,
+    s.Activo,
+    IdCentroCosto = COALESCE(ccByCode.IdCentroCosto, ccFallback.IdCentroCosto)
   FROM src s
-  INNER JOIN cfl.CFL_centro_costo cc ON cc.sap_codigo = s.centro_sap_codigo
+  OUTER APPLY (
+    SELECT TOP 1 cc.IdCentroCosto
+    FROM cfl.CentroCosto cc
+    WHERE cc.SapCodigo = s.CentroSapCodigo
+    ORDER BY cc.IdCentroCosto ASC
+  ) ccByCode
+  OUTER APPLY (
+    SELECT TOP 1 cc.IdCentroCosto
+    FROM cfl.CentroCosto cc
+    WHERE cc.Nombre = N'POR DEFINIR'
+    ORDER BY cc.IdCentroCosto ASC
+  ) ccFallback
 )
-MERGE cfl.CFL_tipo_flete AS t
+MERGE cfl.TipoFlete AS t
 USING resolved AS s
-ON t.sap_codigo = s.sap_codigo
+ON t.SapCodigo = s.SapCodigo
 WHEN MATCHED THEN
   UPDATE SET
-    t.nombre = s.nombre,
-    t.activo = CAST(s.activo AS BIT),
-    t.id_centro_costo = s.id_centro_costo
-WHEN NOT MATCHED THEN
-  INSERT (sap_codigo, nombre, activo, id_centro_costo)
-  VALUES (s.sap_codigo, s.nombre, CAST(s.activo AS BIT), s.id_centro_costo);
+    t.Nombre = s.Nombre,
+    t.Activo = CAST(s.Activo AS BIT),
+    t.IdCentroCosto = s.IdCentroCosto
+WHEN NOT MATCHED AND s.IdCentroCosto IS NOT NULL THEN
+  INSERT (SapCodigo, Nombre, Activo, IdCentroCosto)
+  VALUES (s.SapCodigo, s.Nombre, CAST(s.Activo AS BIT), s.IdCentroCosto);
 
-;WITH src(nombre, categoria, capacidad_kg, requiere_temperatura, descripcion, activo) AS (
+;WITH src(nombre, categoria, CapacidadKg, RequiereTemperatura, descripcion, activo) AS (
   SELECT *
   FROM (VALUES
   (N'PLANO SOLO', N'PLANO', 24000, 0, NULL, 1),
@@ -337,20 +287,20 @@ WHEN NOT MATCHED THEN
   (N'CAMIONETA', N'OTRO', 1500, 0, NULL, 1),
   (N'PARTICULAR', N'OTRO', 800, 0, NULL, 1),
   (N'TOLVA', N'OTRO', 20000, 0, NULL, 1)
-  ) v(nombre, categoria, capacidad_kg, requiere_temperatura, descripcion, activo)
+  ) v(nombre, categoria, CapacidadKg, RequiereTemperatura, descripcion, activo)
 )
-MERGE cfl.CFL_tipo_camion AS t
+MERGE cfl.TipoCamion AS t
 USING src AS s
 ON t.nombre = s.nombre
 WHEN MATCHED THEN
   UPDATE SET
     t.categoria = s.categoria,
-    t.capacidad_kg = CAST(s.capacidad_kg AS DECIMAL(15,3)),
-    t.requiere_temperatura = CAST(s.requiere_temperatura AS BIT),
+    t.CapacidadKg = CAST(s.CapacidadKg AS DECIMAL(15,3)),
+    t.RequiereTemperatura = CAST(s.RequiereTemperatura AS BIT),
     t.descripcion = s.descripcion,
     t.activo = CAST(s.activo AS BIT)
 WHEN NOT MATCHED THEN
-  INSERT (nombre, categoria, capacidad_kg, requiere_temperatura, descripcion, activo)
-  VALUES (s.nombre, s.categoria, CAST(s.capacidad_kg AS DECIMAL(15,3)), CAST(s.requiere_temperatura AS BIT), s.descripcion, CAST(s.activo AS BIT));
+  INSERT (nombre, categoria, CapacidadKg, RequiereTemperatura, descripcion, activo)
+  VALUES (s.nombre, s.categoria, CAST(s.CapacidadKg AS DECIMAL(15,3)), CAST(s.RequiereTemperatura AS BIT), s.descripcion, CAST(s.activo AS BIT));
 
 COMMIT TRANSACTION;

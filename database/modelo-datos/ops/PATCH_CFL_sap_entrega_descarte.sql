@@ -5,19 +5,19 @@
    - Script idempotente (se puede ejecutar mas de una vez).
 ============================================================================ */
 
-IF OBJECT_ID(N'[cfl].[CFL_sap_entrega_descarte]', N'U') IS NULL
+IF OBJECT_ID(N'[cfl].[SapEntregaDescarte]', N'U') IS NULL
 BEGIN
-  CREATE TABLE [cfl].[CFL_sap_entrega_descarte] (
-      [id_sap_entrega_descarte] BIGINT NOT NULL IDENTITY(1,1),
-      [id_sap_entrega] BIGINT NOT NULL,
-      [activo] BIT NOT NULL CONSTRAINT [DF_CFL_sap_entrega_descarte_activo] DEFAULT(1),
-      [motivo] VARCHAR(200) NULL,
-      [created_at] DATETIME2(0) NOT NULL,
-      [updated_at] DATETIME2(0) NOT NULL,
-      [created_by] BIGINT NULL,
-      [restored_at] DATETIME2(0) NULL,
-      [restored_by] BIGINT NULL,
-      CONSTRAINT [PK_CFL_sap_entrega_descarte] PRIMARY KEY ([id_sap_entrega_descarte])
+  CREATE TABLE [cfl].[SapEntregaDescarte] (
+      [IdSapEntregaDescarte] BIGINT NOT NULL IDENTITY(1,1),
+      [IdSapEntrega] BIGINT NOT NULL,
+      [Activo] BIT NOT NULL CONSTRAINT [DF_SapEntregaDescarte_Activo] DEFAULT(1),
+      [Motivo] VARCHAR(200) NULL,
+      [FechaCreacion] DATETIME2(0) NOT NULL,
+      [FechaActualizacion] DATETIME2(0) NOT NULL,
+      [CreadoPor] BIGINT NULL,
+      [FechaRestauracion] DATETIME2(0) NULL,
+      [RestauradoPor] BIGINT NULL,
+      CONSTRAINT [PK_SapEntregaDescarte] PRIMARY KEY ([IdSapEntregaDescarte])
   );
 END;
 GO
@@ -25,65 +25,65 @@ GO
 IF NOT EXISTS (
   SELECT 1
   FROM sys.indexes
-  WHERE name = N'UX_sap_entrega_descarte_entrega'
-    AND object_id = OBJECT_ID(N'[cfl].[CFL_sap_entrega_descarte]')
+  WHERE name = N'UQ_SapEntregaDescarte_IdSapEntrega'
+    AND object_id = OBJECT_ID(N'[cfl].[SapEntregaDescarte]')
 )
 BEGIN
-  CREATE UNIQUE INDEX [UX_sap_entrega_descarte_entrega]
-  ON [cfl].[CFL_sap_entrega_descarte] ([id_sap_entrega]);
+  CREATE UNIQUE INDEX [UQ_SapEntregaDescarte_IdSapEntrega]
+  ON [cfl].[SapEntregaDescarte] ([IdSapEntrega]);
 END;
 GO
 
 IF NOT EXISTS (
   SELECT 1
   FROM sys.indexes
-  WHERE name = N'IX_sap_entrega_descarte_activo'
-    AND object_id = OBJECT_ID(N'[cfl].[CFL_sap_entrega_descarte]')
+  WHERE name = N'IX_SapEntregaDescarte_Activo'
+    AND object_id = OBJECT_ID(N'[cfl].[SapEntregaDescarte]')
 )
 BEGIN
-  CREATE INDEX [IX_sap_entrega_descarte_activo]
-  ON [cfl].[CFL_sap_entrega_descarte] ([activo], [id_sap_entrega]);
+  CREATE INDEX [IX_SapEntregaDescarte_Activo]
+  ON [cfl].[SapEntregaDescarte] ([Activo], [IdSapEntrega]);
 END;
 GO
 
-IF OBJECT_ID(N'[cfl].[CFL_sap_entrega_descarte]', N'U') IS NOT NULL
-   AND OBJECT_ID(N'[cfl].[CFL_sap_entrega]', N'U') IS NOT NULL
+IF OBJECT_ID(N'[cfl].[SapEntregaDescarte]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[cfl].[SapEntrega]', N'U') IS NOT NULL
    AND NOT EXISTS (
      SELECT 1
      FROM sys.foreign_keys
-     WHERE name = N'FK_CFL_sap_entrega_descarte_id_sap_entrega_CFL_sap_entrega'
+     WHERE name = N'FK_SapEntregaDescarte_SapEntrega'
    )
 BEGIN
-  ALTER TABLE [cfl].[CFL_sap_entrega_descarte]
-  ADD CONSTRAINT [FK_CFL_sap_entrega_descarte_id_sap_entrega_CFL_sap_entrega]
-  FOREIGN KEY ([id_sap_entrega]) REFERENCES [cfl].[CFL_sap_entrega] ([id_sap_entrega]);
+  ALTER TABLE [cfl].[SapEntregaDescarte]
+  ADD CONSTRAINT [FK_SapEntregaDescarte_SapEntrega]
+  FOREIGN KEY ([IdSapEntrega]) REFERENCES [cfl].[SapEntrega] ([IdSapEntrega]);
 END;
 GO
 
-IF OBJECT_ID(N'[cfl].[CFL_sap_entrega_descarte]', N'U') IS NOT NULL
-   AND OBJECT_ID(N'[cfl].[CFL_usuario]', N'U') IS NOT NULL
+IF OBJECT_ID(N'[cfl].[SapEntregaDescarte]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[cfl].[Usuario]', N'U') IS NOT NULL
    AND NOT EXISTS (
      SELECT 1
      FROM sys.foreign_keys
-     WHERE name = N'FK_CFL_sap_entrega_descarte_created_by_CFL_usuario'
+     WHERE name = N'FK_SapEntregaDescarte_UsuarioCreadoPor'
    )
 BEGIN
-  ALTER TABLE [cfl].[CFL_sap_entrega_descarte]
-  ADD CONSTRAINT [FK_CFL_sap_entrega_descarte_created_by_CFL_usuario]
-  FOREIGN KEY ([created_by]) REFERENCES [cfl].[CFL_usuario] ([id_usuario]);
+  ALTER TABLE [cfl].[SapEntregaDescarte]
+  ADD CONSTRAINT [FK_SapEntregaDescarte_UsuarioCreadoPor]
+  FOREIGN KEY ([CreadoPor]) REFERENCES [cfl].[Usuario] ([IdUsuario]);
 END;
 GO
 
-IF OBJECT_ID(N'[cfl].[CFL_sap_entrega_descarte]', N'U') IS NOT NULL
-   AND OBJECT_ID(N'[cfl].[CFL_usuario]', N'U') IS NOT NULL
+IF OBJECT_ID(N'[cfl].[SapEntregaDescarte]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[cfl].[Usuario]', N'U') IS NOT NULL
    AND NOT EXISTS (
      SELECT 1
      FROM sys.foreign_keys
-     WHERE name = N'FK_CFL_sap_entrega_descarte_restored_by_CFL_usuario'
+     WHERE name = N'FK_SapEntregaDescarte_UsuarioRestauradoPor'
    )
 BEGIN
-  ALTER TABLE [cfl].[CFL_sap_entrega_descarte]
-  ADD CONSTRAINT [FK_CFL_sap_entrega_descarte_restored_by_CFL_usuario]
-  FOREIGN KEY ([restored_by]) REFERENCES [cfl].[CFL_usuario] ([id_usuario]);
+  ALTER TABLE [cfl].[SapEntregaDescarte]
+  ADD CONSTRAINT [FK_SapEntregaDescarte_UsuarioRestauradoPor]
+  FOREIGN KEY ([RestauradoPor]) REFERENCES [cfl].[Usuario] ([IdUsuario]);
 END;
 GO

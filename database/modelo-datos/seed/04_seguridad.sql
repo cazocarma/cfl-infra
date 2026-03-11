@@ -17,7 +17,7 @@ DECLARE @now DATETIME2(0) = SYSDATETIME();
   (N'Ingresador', N'Registra/edita fletes y conciliaciones', 1)
   ) v(nombre, descripcion, activo)
 )
-MERGE cfl.CFL_rol AS t
+MERGE cfl.Rol AS t
 USING src AS s
 ON t.nombre = s.nombre
 WHEN MATCHED THEN
@@ -28,29 +28,29 @@ WHEN NOT MATCHED THEN
   INSERT (nombre, descripcion, activo)
   VALUES (s.nombre, s.descripcion, CAST(s.activo AS BIT));
 
-;WITH src(username, email, password_hash, nombre, apellido, activo, ultimo_login) AS (
+;WITH src(Username, Email, PasswordHash, nombre, apellido, activo, UltimoLogin) AS (
   SELECT *
   FROM (VALUES
   (N'admin', N'admin@local.test', N'$2a$10$GZLnPdZa2IXUQCKjP.3.aeCbzLVuv6CPCu44jgrcF7lAAd6EGJ542', N'Usuario', N'Administrador', 1, NULL),
   (N'autorizador', N'autorizador@local.test', N'$2a$10$GZLnPdZa2IXUQCKjP.3.aeCbzLVuv6CPCu44jgrcF7lAAd6EGJ542', N'Usuario', N'Autorizador', 1, NULL),
   (N'ingresador', N'ingresador@local.test', N'$2a$10$GZLnPdZa2IXUQCKjP.3.aeCbzLVuv6CPCu44jgrcF7lAAd6EGJ542', N'Usuario', N'Ingresador', 1, NULL)
-  ) v(username, email, password_hash, nombre, apellido, activo, ultimo_login)
+  ) v(Username, Email, PasswordHash, nombre, apellido, activo, UltimoLogin)
 )
-MERGE cfl.CFL_usuario AS t
+MERGE cfl.Usuario AS t
 USING src AS s
-ON t.username = s.username
+ON t.Username = s.Username
 WHEN MATCHED THEN
   UPDATE SET
-    t.email = s.email,
-    t.password_hash = s.password_hash,
+    t.Email = s.Email,
+    t.PasswordHash = s.PasswordHash,
     t.nombre = s.nombre,
     t.apellido = s.apellido,
     t.activo = CAST(s.activo AS BIT),
-    t.ultimo_login = CASE WHEN s.ultimo_login IS NULL THEN NULL ELSE CAST(s.ultimo_login AS DATETIME2(0)) END,
-    t.updated_at = @now
+    t.UltimoLogin = CASE WHEN s.UltimoLogin IS NULL THEN NULL ELSE CAST(s.UltimoLogin AS DATETIME2(0)) END,
+    t.FechaActualizacion = @now
 WHEN NOT MATCHED THEN
-  INSERT (username, email, password_hash, nombre, apellido, activo, ultimo_login, created_at, updated_at)
-  VALUES (s.username, s.email, s.password_hash, s.nombre, s.apellido, CAST(s.activo AS BIT), CASE WHEN s.ultimo_login IS NULL THEN NULL ELSE CAST(s.ultimo_login AS DATETIME2(0)) END, @now, @now);
+  INSERT (Username, Email, PasswordHash, nombre, apellido, activo, UltimoLogin, FechaCreacion, FechaActualizacion)
+  VALUES (s.Username, s.Email, s.PasswordHash, s.nombre, s.apellido, CAST(s.activo AS BIT), CASE WHEN s.UltimoLogin IS NULL THEN NULL ELSE CAST(s.UltimoLogin AS DATETIME2(0)) END, @now, @now);
 
 ;WITH src(recurso, accion, clave, descripcion, activo) AS (
   SELECT *
@@ -89,7 +89,7 @@ WHEN NOT MATCHED THEN
   (N'usuarios', N'admin', N'usuarios.permisos.admin', N'Administrar usuarios/roles/permisos', 1)
   ) v(recurso, accion, clave, descripcion, activo)
 )
-MERGE cfl.CFL_permiso AS t
+MERGE cfl.Permiso AS t
 USING src AS s
 ON t.clave = s.clave
 WHEN MATCHED THEN
@@ -102,26 +102,26 @@ WHEN NOT MATCHED THEN
   INSERT (recurso, accion, clave, descripcion, activo)
   VALUES (s.recurso, s.accion, s.clave, s.descripcion, CAST(s.activo AS BIT));
 
-;WITH src(username, rol_nombre) AS (
+;WITH src(Username, rol_nombre) AS (
   SELECT *
   FROM (VALUES
   (N'admin', N'Administrador'),
   (N'autorizador', N'Autorizador'),
   (N'ingresador', N'Ingresador')
-  ) v(username, rol_nombre)
+  ) v(Username, rol_nombre)
 ), resolved AS (
-  SELECT u.id_usuario, r.id_rol
+  SELECT u.IdUsuario, r.IdRol
   FROM src s
-  INNER JOIN cfl.CFL_usuario u ON u.username = s.username
-  INNER JOIN cfl.CFL_rol r ON r.nombre = s.rol_nombre
+  INNER JOIN cfl.Usuario u ON u.Username = s.Username
+  INNER JOIN cfl.Rol r ON r.nombre = s.rol_nombre
 )
-MERGE cfl.CFL_usuario_rol AS t
+MERGE cfl.UsuarioRol AS t
 USING resolved AS s
-ON t.id_usuario = s.id_usuario
-AND t.id_rol = s.id_rol
+ON t.IdUsuario = s.IdUsuario
+AND t.IdRol = s.IdRol
 WHEN NOT MATCHED THEN
-  INSERT (id_usuario, id_rol)
-  VALUES (s.id_usuario, s.id_rol);
+  INSERT (IdUsuario, IdRol)
+  VALUES (s.IdUsuario, s.IdRol);
 
 ;WITH src(rol_nombre, permiso_clave) AS (
   SELECT *
@@ -193,17 +193,17 @@ WHEN NOT MATCHED THEN
   (N'Ingresador', N'reportes.view')
   ) v(rol_nombre, permiso_clave)
 ), resolved AS (
-  SELECT r.id_rol, p.id_permiso
+  SELECT r.IdRol, p.IdPermiso
   FROM src s
-  INNER JOIN cfl.CFL_rol r ON r.nombre = s.rol_nombre
-  INNER JOIN cfl.CFL_permiso p ON p.clave = s.permiso_clave
+  INNER JOIN cfl.Rol r ON r.nombre = s.rol_nombre
+  INNER JOIN cfl.Permiso p ON p.clave = s.permiso_clave
 )
-MERGE cfl.CFL_rol_permiso AS t
+MERGE cfl.RolPermiso AS t
 USING resolved AS s
-ON t.id_rol = s.id_rol
-AND t.id_permiso = s.id_permiso
+ON t.IdRol = s.IdRol
+AND t.IdPermiso = s.IdPermiso
 WHEN NOT MATCHED THEN
-  INSERT (id_rol, id_permiso)
-  VALUES (s.id_rol, s.id_permiso);
+  INSERT (IdRol, IdPermiso)
+  VALUES (s.IdRol, s.IdPermiso);
 
 COMMIT TRANSACTION;

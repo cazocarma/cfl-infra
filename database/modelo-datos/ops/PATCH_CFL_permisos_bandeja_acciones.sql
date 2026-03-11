@@ -15,7 +15,7 @@ SET NOCOUNT ON;
     ('fletes', 'discard_sap', 'fletes.sap.descartar', 'Descartar entrega SAP de candidatos', 1)
   ) v(recurso, accion, clave, descripcion, activo)
 )
-MERGE cfl.CFL_permiso AS t
+MERGE cfl.Permiso AS t
 USING src AS s
 ON t.clave = s.clave
 WHEN MATCHED THEN
@@ -29,23 +29,23 @@ WHEN NOT MATCHED THEN
   VALUES (s.recurso, s.accion, s.clave, s.descripcion, s.activo);
 
 ;WITH role_permiso AS (
-  SELECT r.id_rol, p.id_permiso
-  FROM cfl.CFL_rol r
-  INNER JOIN cfl.CFL_permiso p ON p.activo = 1
+  SELECT r.IdRol, p.IdPermiso
+  FROM cfl.Rol r
+  INNER JOIN cfl.Permiso p ON p.activo = 1
   WHERE r.nombre IN ('Administrador', 'Autorizador')
     AND p.clave IN ('fletes.anular', 'fletes.sap.descartar')
 )
-MERGE cfl.CFL_rol_permiso AS t
+MERGE cfl.RolPermiso AS t
 USING role_permiso AS s
-ON t.id_rol = s.id_rol AND t.id_permiso = s.id_permiso
+ON t.IdRol = s.IdRol AND t.IdPermiso = s.IdPermiso
 WHEN NOT MATCHED THEN
-  INSERT (id_rol, id_permiso) VALUES (s.id_rol, s.id_permiso);
+  INSERT (IdRol, IdPermiso) VALUES (s.IdRol, s.IdPermiso);
 
 DELETE rp
-FROM cfl.CFL_rol_permiso rp
-INNER JOIN cfl.CFL_rol r
-  ON r.id_rol = rp.id_rol
-INNER JOIN cfl.CFL_permiso p
-  ON p.id_permiso = rp.id_permiso
+FROM cfl.RolPermiso rp
+INNER JOIN cfl.Rol r
+  ON r.IdRol = rp.IdRol
+INNER JOIN cfl.Permiso p
+  ON p.IdPermiso = rp.IdPermiso
 WHERE r.nombre = 'Ingresador'
   AND p.clave IN ('fletes.anular', 'fletes.sap.descartar');

@@ -1,1046 +1,1208 @@
-﻿/* ============================================================================
+/* ============================================================================
    ESQUEMA: cfl
-   - Crea el esquema cfl (si no existe)
-   - Crea tablas bajo [cfl].[*]
-   - Crea Ã­ndices (sin prefijo de esquema en el nombre del Ã­ndice)
-   - Crea FKs
-   - Crea Ã­ndices UNIQUE de deduplicación BK+hash (LÃ­nea A)
-   - Crea vistas "current" (Última versión por BK) apuntando a tablas reales
+   Convencion de nombres (PascalCase + español):
+   - Tablas:      cfl.<NombreSingular>          (sin prefijo CFL_)
+   - Columnas:    PascalCase español             (ej. FechaCreacion)
+   - PK:          PK_<Tabla>
+   - FK:          FK_<Tabla>_<TablaRef>          (+ rol si hay ambiguedad)
+   - UNIQUE idx:  UQ_<Tabla>_<Columna>
+   - Indices:     IX_<Tabla>_<Columna>
+   - Vistas:      VW_<Nombre>
+   - Funciones:   Fn_<Nombre>
 ============================================================================ */
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'cfl')
     EXEC('CREATE SCHEMA [cfl] AUTHORIZATION [dbo];');
 GO
 
-/* =========================
-   TABLA: cfl.CFL_etl_run
-========================= */
-CREATE TABLE [cfl].[CFL_etl_run] (
-    [run_id]        BIGINT IDENTITY UNIQUE,
-    [execution_id]  UNIQUEIDENTIFIER NOT NULL UNIQUE,
-    [source_system] VARCHAR(50) NOT NULL,
-    [source_name]   VARCHAR(100) NOT NULL,
-    [extracted_at]  DATETIME2(0) NOT NULL,
-    [watermark_from] DATETIME2(0),
-    [watermark_to]   DATETIME2(0),
-    [status]        VARCHAR(20) NOT NULL,
-    [rows_extracted] INT,
-    [rows_inserted]  INT,
-    [rows_updated]   INT,
-    [rows_unchanged] INT,
-    [error_message] NVARCHAR(4000),
-    [created_at]    DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([run_id])
+/* ============================================================
+   TABLA: cfl.EtlEjecucion  (ex CFL_etl_run)
+============================================================ */
+CREATE TABLE [cfl].[EtlEjecucion] (
+    [IdEtlEjecucion]    BIGINT IDENTITY UNIQUE,
+    [IdEjecucion]       UNIQUEIDENTIFIER NOT NULL UNIQUE,
+    [SistemaFuente]     NVARCHAR(50)  NOT NULL,
+    [NombreFuente]      NVARCHAR(100) NOT NULL,
+    [FechaExtraccion]   DATETIME2(0) NOT NULL,
+    [MarcaAguaDesde]    DATETIME2(0) NULL,
+    [MarcaAguaHasta]    DATETIME2(0) NULL,
+    [Estado]            NVARCHAR(20)  NOT NULL,
+    [FilasExtraidas]    INT NULL,
+    [FilasInsertadas]   INT NULL,
+    [FilasActualizadas] INT NULL,
+    [FilasSinCambio]    INT NULL,
+    [MensajeError]      NVARCHAR(4000) NULL,
+    [FechaCreacion]     DATETIME2(0) NOT NULL,
+    PRIMARY KEY ([IdEtlEjecucion])
 );
 GO
 
-/* =========================
-   TABLA: cfl.CFL_sap_likp_raw
-========================= */
-CREATE TABLE [cfl].[CFL_sap_likp_raw] (
-    [raw_id] BIGINT IDENTITY UNIQUE,
-    [execution_id] UNIQUEIDENTIFIER NOT NULL,
-    [extracted_at] DATETIME2(0) NOT NULL,
-    [source_system] VARCHAR(50) NOT NULL,
-    [row_hash] BINARY(32) NOT NULL,
-    [row_status] VARCHAR(20) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
+/* ============================================================
+   TABLA: cfl.SapLikpRaw  (ex CFL_sap_likp_raw)
+   + columna nueva: SapDestinatario (después de SapPuestoExpedicion)
+============================================================ */
+CREATE TABLE [cfl].[SapLikpRaw] (
+    [IdSapLikpRaw]          BIGINT IDENTITY UNIQUE,
+    [IdEjecucion]           UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]       DATETIME2(0) NOT NULL,
+    [SistemaFuente]         NVARCHAR(50)  NOT NULL,
+    [HashFila]              BINARY(32)   NOT NULL,
+    [EstadoFila]            NVARCHAR(20)  NOT NULL,
+    [FechaCreacion]         DATETIME2(0) NOT NULL,
 
-    [sap_numero_entrega] VARCHAR(20) NOT NULL,
-    [sap_referencia] CHAR(25) NOT NULL,
-    [sap_puesto_expedicion] CHAR(4) NOT NULL,
-    [sap_organizacion_ventas] CHAR(4) NOT NULL,
-    [sap_creado_por] CHAR(12) NOT NULL,
-    [sap_fecha_creacion] DATE NOT NULL,
-    [sap_clase_entrega] CHAR(4) NOT NULL,
-    [sap_tipo_entrega] VARCHAR(20) NOT NULL,
-    [sap_fecha_carga] DATE NOT NULL,
-    [sap_hora_carga] TIME NOT NULL,
-    [sap_guia_remision] CHAR(25) NOT NULL,
-    [sap_nombre_chofer] VARCHAR(40) NOT NULL,
-    [sap_id_fiscal_chofer] VARCHAR(20) NOT NULL,
-    [sap_empresa_transporte] CHAR(3) NOT NULL,
-    [sap_patente] VARCHAR(20) NOT NULL,
-    [sap_carro] VARCHAR(20) NOT NULL,
-    [sap_fecha_salida] DATE NOT NULL,
-    [sap_hora_salida] TIME NOT NULL,
-    [sap_codigo_tipo_flete] CHAR(4) NOT NULL,
-    [sap_centro_costo] CHAR(10),
-    [sap_cuenta_mayor] CHAR(10),
-    [sap_peso_total] DECIMAL(15,3) NOT NULL,
-    [sap_peso_neto] DECIMAL(15,3) NOT NULL,
-    [sap_fecha_entrega_real] DATE NOT NULL,
+    [SapNumeroEntrega]      NVARCHAR(20)  NOT NULL,
+    [SapReferencia]         CHAR(25)     NOT NULL,
+    [SapPuestoExpedicion]   CHAR(4)      NOT NULL,
+    [SapDestinatario]       NVARCHAR(20) NULL,
+    [SapOrganizacionVentas] CHAR(4)      NOT NULL,
+    [SapCreadoPor]          CHAR(12)     NOT NULL,
+    [SapFechaCreacion]      DATE         NOT NULL,
+    [SapClaseEntrega]       CHAR(4)      NOT NULL,
+    [SapTipoEntrega]        NVARCHAR(20)  NOT NULL,
+    [SapFechaCarga]         DATE         NOT NULL,
+    [SapHoraCarga]          TIME         NOT NULL,
+    [SapGuiaRemision]       CHAR(25)     NOT NULL,
+    [SapNombreChofer]       NVARCHAR(40)  NOT NULL,
+    [SapIdFiscalChofer]     NVARCHAR(20)  NOT NULL,
+    [SapEmpresaTransporte]  CHAR(3)      NOT NULL,
+    [SapPatente]            NVARCHAR(20)  NOT NULL,
+    [SapCarro]              NVARCHAR(20)  NOT NULL,
+    [SapFechaSalida]        DATE         NOT NULL,
+    [SapHoraSalida]         TIME         NOT NULL,
+    [SapCodigoTipoFlete]    CHAR(4)      NOT NULL,
+    [SapCentroCosto]        CHAR(10)     NULL,
+    [SapCuentaMayor]        CHAR(10)     NULL,
+    [SapPesoTotal]          DECIMAL(15,3) NOT NULL,
+    [SapPesoNeto]           DECIMAL(15,3) NOT NULL,
+    [SapFechaEntregaReal]   DATE         NOT NULL,
 
-    PRIMARY KEY ([raw_id])
+    PRIMARY KEY ([IdSapLikpRaw])
 );
 GO
 
-CREATE INDEX [IX_likp_execution]
-ON [cfl].[CFL_sap_likp_raw] ([execution_id]);
+CREATE INDEX [IX_SapLikpRaw_IdEjecucion]
+ON [cfl].[SapLikpRaw] ([IdEjecucion]);
 GO
 
--- Ãndice soporte para vista "current" (BK + extracted_at)
-CREATE INDEX [CFL_sap_likp_raw_index_1]
-ON [cfl].[CFL_sap_likp_raw] ([source_system], [sap_numero_entrega], [extracted_at]);
+CREATE INDEX [IX_SapLikpRaw_BkFecha]
+ON [cfl].[SapLikpRaw] ([SistemaFuente], [SapNumeroEntrega], [FechaExtraccion]);
 GO
 
-/* =========================
-   TABLA: cfl.CFL_sap_lips_raw
-========================= */
-CREATE TABLE [cfl].[CFL_sap_lips_raw] (
-    [raw_id] BIGINT IDENTITY UNIQUE,
-    [execution_id] UNIQUEIDENTIFIER NOT NULL,
-    [extracted_at] DATETIME2(0) NOT NULL,
-    [source_system] VARCHAR(50) NOT NULL,
-    [row_hash] BINARY(32) NOT NULL,
-    [row_status] VARCHAR(20) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
+CREATE UNIQUE INDEX [UQ_SapLikpRaw_BkHash]
+ON [cfl].[SapLikpRaw] ([SistemaFuente], [SapNumeroEntrega], [HashFila]);
+GO
 
-    [sap_numero_entrega] VARCHAR(20) NOT NULL,
-    [sap_posicion] CHAR(6) NOT NULL,
-    [sap_material] VARCHAR(40) NOT NULL,
-    [sap_cantidad_entregada] DECIMAL(13,3) NOT NULL,
-    [sap_unidad_peso] CHAR(3) NOT NULL,
-    [sap_denominacion_material] VARCHAR(40) NOT NULL,
-    [sap_centro] CHAR(4) NOT NULL,
-    [sap_almacen] CHAR(4) NOT NULL,
-    [sap_posicion_superior] CHAR(6) NULL,   -- 09-02-2026: Se agrega para soportar detalles extendidos -> UEPOS
-    [sap_lote] VARCHAR(20) NULL,            -- CHARG (10 en SAP; 20 por seguridad)
+/* ============================================================
+   TABLA: cfl.SapLipsRaw  (ex CFL_sap_lips_raw)
+============================================================ */
+CREATE TABLE [cfl].[SapLipsRaw] (
+    [IdSapLipsRaw]              BIGINT IDENTITY UNIQUE,
+    [IdEjecucion]               UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]           DATETIME2(0) NOT NULL,
+    [SistemaFuente]             NVARCHAR(50)  NOT NULL,
+    [HashFila]                  BINARY(32)   NOT NULL,
+    [EstadoFila]                NVARCHAR(20)  NOT NULL,
+    [FechaCreacion]             DATETIME2(0) NOT NULL,
 
-    PRIMARY KEY ([raw_id])
+    [SapNumeroEntrega]          NVARCHAR(20)  NOT NULL,
+    [SapPosicion]               CHAR(6)      NOT NULL,
+    [SapMaterial]               NVARCHAR(40)  NOT NULL,
+    [SapCantidadEntregada]      DECIMAL(13,3) NOT NULL,
+    [SapUnidadPeso]             CHAR(3)      NOT NULL,
+    [SapDenominacionMaterial]   NVARCHAR(40)  NOT NULL,
+    [SapCentro]                 CHAR(4)      NOT NULL,
+    [SapAlmacen]                CHAR(4)      NOT NULL,
+    [SapPosicionSuperior]       CHAR(6)      NULL,  -- UEPOS: soporte detalles extendidos
+    [SapLote]                   NVARCHAR(20)  NULL,  -- CHARG
+
+    PRIMARY KEY ([IdSapLipsRaw])
 );
 GO
 
-CREATE INDEX [IX_lips_execution]
-ON [cfl].[CFL_sap_lips_raw] ([execution_id]);
+CREATE INDEX [IX_SapLipsRaw_IdEjecucion]
+ON [cfl].[SapLipsRaw] ([IdEjecucion]);
 GO
 
--- Ãndice soporte para vista "current" (BK + extracted_at)
-CREATE INDEX [CFL_sap_lips_raw_index_1]
-ON [cfl].[CFL_sap_lips_raw] ([source_system], [sap_numero_entrega], [sap_posicion], [extracted_at]);
+CREATE INDEX [IX_SapLipsRaw_BkFecha]
+ON [cfl].[SapLipsRaw] ([SistemaFuente], [SapNumeroEntrega], [SapPosicion], [FechaExtraccion]);
 GO
 
-CREATE INDEX [IX_lips_vbeln_uepos]
-ON [cfl].[CFL_sap_lips_raw] ([source_system], [sap_numero_entrega], [sap_posicion_superior]);
+CREATE INDEX [IX_SapLipsRaw_VbelnUepos]
+ON [cfl].[SapLipsRaw] ([SistemaFuente], [SapNumeroEntrega], [SapPosicionSuperior]);
 GO
 
-/* =========================
-   TABLA: cfl.CFL_sap_entrega
-========================= */
-CREATE TABLE [cfl].[CFL_sap_entrega] (
-    [id_sap_entrega] BIGINT NOT NULL IDENTITY UNIQUE,
-    [sap_numero_entrega] VARCHAR(20) NOT NULL,
-    [source_system] VARCHAR(50) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
+CREATE UNIQUE INDEX [UQ_SapLipsRaw_BkHash]
+ON [cfl].[SapLipsRaw] ([SistemaFuente], [SapNumeroEntrega], [SapPosicion], [HashFila]);
+GO
 
-    [locked] BIT NOT NULL CONSTRAINT [DF_CFL_sap_entrega_locked] DEFAULT(0),
-    [locked_at] DATETIME2(0) NULL,
+/* ============================================================
+   TABLA: cfl.SapEntrega  (ex CFL_sap_entrega)
+============================================================ */
+CREATE TABLE [cfl].[SapEntrega] (
+    [IdSapEntrega]                  BIGINT NOT NULL IDENTITY UNIQUE,
+    [SapNumeroEntrega]              NVARCHAR(20)      NOT NULL,
+    [SistemaFuente]                 NVARCHAR(50)      NOT NULL,
+    [FechaCreacion]                 DATETIME2(0)     NOT NULL,
+    [FechaActualizacion]            DATETIME2(0)     NOT NULL,
 
-    [changed_in_last_run] BIT NOT NULL CONSTRAINT [DF_CFL_sap_entrega_changed_in_last_run] DEFAULT(0),
-    [last_change_at] DATETIME2(0) NULL,
-    [last_change_type] VARCHAR(20) NULL,
+    [Bloqueado]                     BIT NOT NULL CONSTRAINT [DF_SapEntrega_Bloqueado] DEFAULT(0),
+    [FechaBloqueado]                DATETIME2(0)     NULL,
 
-    [last_seen_execution_id] UNIQUEIDENTIFIER NULL,
-    [last_seen_at] DATETIME2(0) NULL,
+    [CambiadoEnUltimaEjecucion]     BIT NOT NULL CONSTRAINT [DF_SapEntrega_CambiadoEnUltimaEjecucion] DEFAULT(0),
+    [FechaUltimoCambio]             DATETIME2(0)     NULL,
+    [TipoUltimoCambio]              NVARCHAR(20)      NULL,
 
-    [last_change_execution_id] UNIQUEIDENTIFIER NULL,
-    [last_change_extracted_at] DATETIME2(0) NULL,
+    [IdEjecucionUltimaVista]        UNIQUEIDENTIFIER NULL,
+    [FechaUltimaVista]              DATETIME2(0)     NULL,
 
-    [last_raw_likp_id] BIGINT NULL,
-    [last_raw_likp_hash] BINARY(32) NULL,
-    PRIMARY KEY ([id_sap_entrega])
+    [IdEjecucionUltimoCambio]       UNIQUEIDENTIFIER NULL,
+    [FechaExtraccionUltimoCambio]   DATETIME2(0)     NULL,
+
+    [IdUltimoLikpRaw]               BIGINT           NULL,
+    [HashUltimoLikpRaw]             BINARY(32)       NULL,
+    PRIMARY KEY ([IdSapEntrega])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_sap_entrega_bk]
-ON [cfl].[CFL_sap_entrega] ([sap_numero_entrega], [source_system]);
+CREATE UNIQUE INDEX [UQ_SapEntrega_Bk]
+ON [cfl].[SapEntrega] ([SapNumeroEntrega], [SistemaFuente]);
 GO
 
-CREATE INDEX [IX_sap_entrega_vbeln]
-ON [cfl].[CFL_sap_entrega] ([sap_numero_entrega]);
+CREATE INDEX [IX_SapEntrega_NumeroEntrega]
+ON [cfl].[SapEntrega] ([SapNumeroEntrega]);
 GO
 
-/* =========================
-   TABLA: cfl.CFL_sap_entrega_hist
-========================= */
-CREATE TABLE [cfl].[CFL_sap_entrega_hist] (
-    [id_sap_entrega_hist] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_sap_entrega] BIGINT NOT NULL,
-    [raw_likp_id] BIGINT NOT NULL,
-    [execution_id] UNIQUEIDENTIFIER NOT NULL,
-    [extracted_at] DATETIME2(0) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_sap_entrega_hist])
+/* ============================================================
+   TABLA: cfl.SapEntregaHistorial  (ex CFL_sap_entrega_hist)
+============================================================ */
+CREATE TABLE [cfl].[SapEntregaHistorial] (
+    [IdSapEntregaHistorial] BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdSapEntrega]          BIGINT           NOT NULL,
+    [IdLikpRaw]             BIGINT           NOT NULL,
+    [IdEjecucion]           UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]       DATETIME2(0)     NOT NULL,
+    [FechaCreacion]         DATETIME2(0)     NOT NULL,
+    PRIMARY KEY ([IdSapEntregaHistorial])
 );
 GO
 
-CREATE INDEX [IX_sap_entrega_hist_entrega]
-ON [cfl].[CFL_sap_entrega_hist] ([id_sap_entrega]);
+CREATE INDEX [IX_SapEntregaHistorial_IdSapEntrega]
+ON [cfl].[SapEntregaHistorial] ([IdSapEntrega]);
 GO
 
-CREATE UNIQUE INDEX [UX_sap_entrega_hist_raw_likp]
-ON [cfl].[CFL_sap_entrega_hist] ([raw_likp_id]);
+CREATE UNIQUE INDEX [UQ_SapEntregaHistorial_IdLikpRaw]
+ON [cfl].[SapEntregaHistorial] ([IdLikpRaw]);
 GO
 
-/* =========================
-   TABLA: cfl.CFL_sap_entrega_posicion
-========================= */
-CREATE TABLE [cfl].[CFL_sap_entrega_posicion] (
-    [id_sap_entrega_posicion] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_sap_entrega] BIGINT NOT NULL,
-    [sap_posicion] CHAR(6) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    [status] VARCHAR(20) NOT NULL CONSTRAINT [DF_CFL_sap_entrega_pos_status] DEFAULT('ACTIVE'),
-    [missing_since] DATETIME2(0) NULL,
+/* ============================================================
+   TABLA: cfl.SapEntregaPosicion  (ex CFL_sap_entrega_posicion)
+============================================================ */
+CREATE TABLE [cfl].[SapEntregaPosicion] (
+    [IdSapEntregaPosicion]          BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdSapEntrega]                  BIGINT       NOT NULL,
+    [SapPosicion]                   CHAR(6)      NOT NULL,
+    [FechaCreacion]                 DATETIME2(0) NOT NULL,
+    [FechaActualizacion]            DATETIME2(0) NOT NULL,
+    [Estado]                        NVARCHAR(20)  NOT NULL CONSTRAINT [DF_SapEntregaPosicion_Estado] DEFAULT('ACTIVE'),
+    [AusenteDesde]                  DATETIME2(0) NULL,
 
-    [changed_in_last_run] BIT NOT NULL CONSTRAINT [DF_CFL_sap_entrega_pos_changed_in_last_run] DEFAULT(0),
-    [last_change_at] DATETIME2(0) NULL,
-    [last_change_type] VARCHAR(20) NULL,
+    [CambiadoEnUltimaEjecucion]     BIT NOT NULL CONSTRAINT [DF_SapEntregaPosicion_CambiadoEnUltimaEjecucion] DEFAULT(0),
+    [FechaUltimoCambio]             DATETIME2(0) NULL,
+    [TipoUltimoCambio]              NVARCHAR(20)  NULL,
 
-    [last_seen_execution_id] UNIQUEIDENTIFIER NULL,
-    [last_seen_at] DATETIME2(0) NULL,
+    [IdEjecucionUltimaVista]        UNIQUEIDENTIFIER NULL,
+    [FechaUltimaVista]              DATETIME2(0)     NULL,
 
-    [last_change_execution_id] UNIQUEIDENTIFIER NULL,
-    [last_change_extracted_at] DATETIME2(0) NULL,
+    [IdEjecucionUltimoCambio]       UNIQUEIDENTIFIER NULL,
+    [FechaExtraccionUltimoCambio]   DATETIME2(0)     NULL,
 
-    [last_raw_lips_id] BIGINT NULL,
-    [last_raw_lips_hash] BINARY(32) NULL,
-    PRIMARY KEY ([id_sap_entrega_posicion])
+    [IdUltimoLipsRaw]               BIGINT           NULL,
+    [HashUltimoLipsRaw]             BINARY(32)       NULL,
+    PRIMARY KEY ([IdSapEntregaPosicion])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_sap_entrega_pos_bk]
-ON [cfl].[CFL_sap_entrega_posicion] ([id_sap_entrega], [sap_posicion]);
+CREATE UNIQUE INDEX [UQ_SapEntregaPosicion_Bk]
+ON [cfl].[SapEntregaPosicion] ([IdSapEntrega], [SapPosicion]);
 GO
 
-/* =========================
-   TABLA: cfl.CFL_sap_entrega_posicion_hist
-========================= */
-CREATE TABLE [cfl].[CFL_sap_entrega_posicion_hist] (
-    [id_sap_entrega_posicion_hist] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_sap_entrega_posicion] BIGINT NOT NULL,
-    [raw_lips_id] BIGINT NOT NULL,
-    [execution_id] UNIQUEIDENTIFIER NOT NULL,
-    [extracted_at] DATETIME2(0) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_sap_entrega_posicion_hist])
+/* ============================================================
+   TABLA: cfl.SapEntregaPosicionHistorial  (ex CFL_sap_entrega_posicion_hist)
+============================================================ */
+CREATE TABLE [cfl].[SapEntregaPosicionHistorial] (
+    [IdSapEntregaPosicionHistorial] BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdSapEntregaPosicion]          BIGINT           NOT NULL,
+    [IdLipsRaw]                     BIGINT           NOT NULL,
+    [IdEjecucion]                   UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]               DATETIME2(0)     NOT NULL,
+    [FechaCreacion]                 DATETIME2(0)     NOT NULL,
+    PRIMARY KEY ([IdSapEntregaPosicionHistorial])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_sap_entrega_pos_hist_raw_lips]
-ON [cfl].[CFL_sap_entrega_posicion_hist] ([raw_lips_id]);
+CREATE UNIQUE INDEX [UQ_SapEntregaPosicionHistorial_IdLipsRaw]
+ON [cfl].[SapEntregaPosicionHistorial] ([IdLipsRaw]);
 GO
 
-CREATE INDEX [CFL_sap_entrega_posicion_hist_index_1]
-ON [cfl].[CFL_sap_entrega_posicion_hist] ([id_sap_entrega_posicion]);
+CREATE INDEX [IX_SapEntregaPosicionHistorial_IdPosicion]
+ON [cfl].[SapEntregaPosicionHistorial] ([IdSapEntregaPosicion]);
 GO
-/* =========================
-   TABLA: cfl.CFL_sap_entrega_descarte
-========================= */
-CREATE TABLE [cfl].[CFL_sap_entrega_descarte] (
-    [id_sap_entrega_descarte] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_sap_entrega] BIGINT NOT NULL,
-    [activo] BIT NOT NULL CONSTRAINT [DF_CFL_sap_entrega_descarte_activo] DEFAULT(1),
-    [motivo] VARCHAR(200),
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    [created_by] BIGINT,
-    [restored_at] DATETIME2(0),
-    [restored_by] BIGINT,
-    PRIMARY KEY ([id_sap_entrega_descarte])
+
+/* ============================================================
+   TABLA: cfl.SapEntregaDescarte  (ex CFL_sap_entrega_descarte)
+============================================================ */
+CREATE TABLE [cfl].[SapEntregaDescarte] (
+    [IdSapEntregaDescarte]  BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdSapEntrega]          BIGINT       NOT NULL,
+    [Activo]                BIT NOT NULL CONSTRAINT [DF_SapEntregaDescarte_Activo] DEFAULT(1),
+    [Motivo]                NVARCHAR(200) NULL,
+    [FechaCreacion]         DATETIME2(0) NOT NULL,
+    [FechaActualizacion]    DATETIME2(0) NOT NULL,
+    [CreadoPor]             BIGINT       NULL,
+    [FechaRestauracion]     DATETIME2(0) NULL,
+    [RestauradoPor]         BIGINT       NULL,
+    PRIMARY KEY ([IdSapEntregaDescarte])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_sap_entrega_descarte_entrega]
-ON [cfl].[CFL_sap_entrega_descarte] ([id_sap_entrega]);
+CREATE UNIQUE INDEX [UQ_SapEntregaDescarte_IdSapEntrega]
+ON [cfl].[SapEntregaDescarte] ([IdSapEntrega]);
 GO
 
-CREATE INDEX [IX_sap_entrega_descarte_activo]
-ON [cfl].[CFL_sap_entrega_descarte] ([activo], [id_sap_entrega]);
+CREATE INDEX [IX_SapEntregaDescarte_Activo]
+ON [cfl].[SapEntregaDescarte] ([Activo], [IdSapEntrega]);
 GO
 
-/* =========================
-   TABLAS: catÃ¡logo y operación
-========================= */
-CREATE TABLE [cfl].[CFL_temporada] (
-    [id_temporada] BIGINT NOT NULL IDENTITY UNIQUE,
-    [codigo] VARCHAR(20) NOT NULL,
-    [nombre] VARCHAR(100) NOT NULL,
-    [fecha_inicio] DATETIME2(0) NOT NULL,
-    [fecha_fin] DATETIME2(0) NOT NULL,
-    [activa] BIT NOT NULL,
-    [cerrada] BIT NOT NULL,
-    [fecha_cierre] DATETIME2(0),
-    [id_usuario_cierre] BIGINT,
-    [observacion_cierre] VARCHAR(200),
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_temporada])
+/* ============================================================
+   TABLAS: catálogo y operación
+============================================================ */
+
+CREATE TABLE [cfl].[Temporada] (
+    [IdTemporada]       BIGINT NOT NULL IDENTITY UNIQUE,
+    [Codigo]            NVARCHAR(20)  NOT NULL,
+    [Nombre]            NVARCHAR(100) NOT NULL,
+    [FechaInicio]       DATETIME2(0) NOT NULL,
+    [FechaFin]          DATETIME2(0) NOT NULL,
+    [Activa]            BIT          NOT NULL,
+    [Cerrada]           BIT          NOT NULL,
+    [FechaCierre]       DATETIME2(0) NULL,
+    [IdUsuarioCierre]   BIGINT       NULL,
+    [ObservacionCierre] NVARCHAR(200) NULL,
+    [FechaCreacion]     DATETIME2(0) NOT NULL,
+    [FechaActualizacion] DATETIME2(0) NOT NULL,
+    PRIMARY KEY ([IdTemporada])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_temporada_codigo]
-ON [cfl].[CFL_temporada] ([codigo]);
+CREATE UNIQUE INDEX [UQ_Temporada_Codigo]
+ON [cfl].[Temporada] ([Codigo]);
 GO
 
-CREATE TABLE [cfl].[CFL_centro_costo] (
-    [id_centro_costo] BIGINT NOT NULL IDENTITY UNIQUE,
-    [sap_codigo] VARCHAR(20) NOT NULL,
-    [nombre] VARCHAR(100) NOT NULL,
-    [activo] BIT NOT NULL,
-    PRIMARY KEY ([id_centro_costo])
+CREATE TABLE [cfl].[CentroCosto] (
+    [IdCentroCosto] BIGINT NOT NULL IDENTITY UNIQUE,
+    [SapCodigo]     NVARCHAR(20)  NOT NULL,
+    [Nombre]        NVARCHAR(100) NOT NULL,
+    [Activo]        BIT          NOT NULL,
+    PRIMARY KEY ([IdCentroCosto])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_cc_sap_codigo]
-ON [cfl].[CFL_centro_costo] ([sap_codigo]);
+CREATE UNIQUE INDEX [UQ_CentroCosto_SapCodigo]
+ON [cfl].[CentroCosto] ([SapCodigo]);
 GO
 
-
-CREATE TABLE [cfl].[CFL_cuenta_mayor] (
-    [id_cuenta_mayor] BIGINT NOT NULL IDENTITY UNIQUE,
-    [codigo]          VARCHAR(30) NOT NULL,
-    [glosa]           VARCHAR(100) NOT NULL,
-    PRIMARY KEY ([id_cuenta_mayor])
+CREATE TABLE [cfl].[CuentaMayor] (
+    [IdCuentaMayor] BIGINT NOT NULL IDENTITY UNIQUE,
+    [Codigo]        NVARCHAR(30)  NOT NULL,
+    [Glosa]         NVARCHAR(100) NOT NULL,
+    PRIMARY KEY ([IdCuentaMayor])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_cuenta_mayor_codigo]
-ON [cfl].[CFL_cuenta_mayor] ([codigo]);
+CREATE UNIQUE INDEX [UQ_CuentaMayor_Codigo]
+ON [cfl].[CuentaMayor] ([Codigo]);
 GO
 
-CREATE TABLE [cfl].[CFL_folio] (
-    [id_folio] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_usuario_cierre] BIGINT,
-    [id_centro_costo] BIGINT NOT NULL,
-    [id_temporada] BIGINT NOT NULL,
-    [folio_numero] VARCHAR(30) NOT NULL,
-    [periodo_desde] DATETIME2(0),
-    [periodo_hasta] DATETIME2(0),
-    [estado] VARCHAR(20) NOT NULL,
-    [bloqueado] BIT NOT NULL,
-    [fecha_cierre] DATETIME2(0),
-    [resultado_cuadratura] VARCHAR(20),
-    [resumen_cuadratura] VARCHAR(500),
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_folio])
+CREATE TABLE [cfl].[Folio] (
+    [IdFolio]               BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdUsuarioCierre]       BIGINT       NULL,
+    [IdCentroCosto]         BIGINT       NOT NULL,
+    [IdTemporada]           BIGINT       NOT NULL,
+    [FolioNumero]           NVARCHAR(30)  NOT NULL,
+    [PeriodoDesde]          DATETIME2(0) NULL,
+    [PeriodoHasta]          DATETIME2(0) NULL,
+    [Estado]                NVARCHAR(20)  NOT NULL,
+    [Bloqueado]             BIT          NOT NULL,
+    [FechaCierre]           DATETIME2(0) NULL,
+    [ResultadoCuadratura]   NVARCHAR(20)  NULL,
+    [ResumenCuadratura]     NVARCHAR(500) NULL,
+    [FechaCreacion]         DATETIME2(0) NOT NULL,
+    [FechaActualizacion]    DATETIME2(0) NOT NULL,
+    PRIMARY KEY ([IdFolio])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_folio_temporada_cc]
-ON [cfl].[CFL_folio] ([id_temporada], [id_centro_costo], [folio_numero]);
+CREATE UNIQUE INDEX [UQ_Folio_TemporadaCc]
+ON [cfl].[Folio] ([IdTemporada], [IdCentroCosto], [FolioNumero]);
 GO
 
-CREATE TABLE [cfl].[CFL_nodo_logistico] (
-    [id_nodo] BIGINT NOT NULL IDENTITY UNIQUE,
-    [nombre] VARCHAR(100) NOT NULL,
-    [region] VARCHAR(50) NOT NULL,
-    [comuna] VARCHAR(100) NOT NULL,
-    [ciudad] VARCHAR(100) NOT NULL,
-    [calle] VARCHAR(100) NOT NULL,
-    [activo] BIT NOT NULL,
-    PRIMARY KEY ([id_nodo])
+CREATE TABLE [cfl].[NodoLogistico] (
+    [IdNodo]    BIGINT NOT NULL IDENTITY UNIQUE,
+    [Nombre]    NVARCHAR(100) NOT NULL,
+    [Region]    NVARCHAR(50)  NOT NULL,
+    [Comuna]    NVARCHAR(100) NOT NULL,
+    [Ciudad]    NVARCHAR(100) NOT NULL,
+    [Calle]     NVARCHAR(100) NOT NULL,
+    [Activo]    BIT          NOT NULL,
+    PRIMARY KEY ([IdNodo])
 );
 GO
 
-CREATE TABLE [cfl].[CFL_ruta] (
-    [id_ruta] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_origen_nodo] BIGINT NOT NULL,
-    [id_destino_nodo] BIGINT NOT NULL,
-    [nombre_ruta] VARCHAR(100) NOT NULL,
-    [distancia_km] DECIMAL(10,2),
-    [activo] BIT NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_ruta])
+CREATE TABLE [cfl].[Ruta] (
+    [IdRuta]             BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdOrigenNodo]       BIGINT        NOT NULL,
+    [IdDestinoNodo]      BIGINT        NOT NULL,
+    [NombreRuta]         NVARCHAR(100)  NOT NULL,
+    [DistanciaKm]        DECIMAL(10,2) NULL,
+    [Activo]             BIT           NOT NULL,
+    [FechaCreacion]      DATETIME2(0)  NOT NULL,
+    [FechaActualizacion] DATETIME2(0)  NOT NULL,
+    PRIMARY KEY ([IdRuta])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_ruta_origen_destino]
-ON [cfl].[CFL_ruta] ([id_origen_nodo], [id_destino_nodo]);
+CREATE UNIQUE INDEX [UQ_Ruta_OrigenDestino]
+ON [cfl].[Ruta] ([IdOrigenNodo], [IdDestinoNodo]);
 GO
 
-CREATE TABLE [cfl].[CFL_tipo_camion] (
-    [id_tipo_camion] BIGINT NOT NULL IDENTITY UNIQUE,
-    [nombre] VARCHAR(100) NOT NULL,
-    [categoria] VARCHAR(20) NOT NULL,
-    [capacidad_kg] DECIMAL(15,3) NOT NULL,
-    [requiere_temperatura] BIT NOT NULL,
-    [descripcion] VARCHAR(100),
-    [activo] BIT NOT NULL,
-    PRIMARY KEY ([id_tipo_camion])
+CREATE TABLE [cfl].[TipoCamion] (
+    [IdTipoCamion]          BIGINT NOT NULL IDENTITY UNIQUE,
+    [Nombre]                NVARCHAR(100)  NOT NULL,
+    [Categoria]             NVARCHAR(20)   NOT NULL,
+    [CapacidadKg]           DECIMAL(15,3) NOT NULL,
+    [RequiereTemperatura]   BIT           NOT NULL,
+    [Descripcion]           NVARCHAR(100)  NULL,
+    [Activo]                BIT           NOT NULL,
+    PRIMARY KEY ([IdTipoCamion])
 );
 GO
 
-CREATE TABLE [cfl].[CFL_camion] (
-    [id_camion] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_tipo_camion] BIGINT NOT NULL,
-    [sap_patente] VARCHAR(20) NOT NULL,
-    [sap_carro] VARCHAR(20) NOT NULL,
-    [activo] BIT NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_camion])
+CREATE TABLE [cfl].[Camion] (
+    [IdCamion]           BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdTipoCamion]       BIGINT       NOT NULL,
+    [SapPatente]         NVARCHAR(20)  NOT NULL,
+    [SapCarro]           NVARCHAR(20)  NOT NULL,
+    [Activo]             BIT          NOT NULL,
+    [FechaCreacion]      DATETIME2(0) NOT NULL,
+    [FechaActualizacion] DATETIME2(0) NOT NULL,
+    PRIMARY KEY ([IdCamion])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_camion_patente_carro]
-ON [cfl].[CFL_camion] ([sap_patente], [sap_carro]);
+CREATE UNIQUE INDEX [UQ_Camion_PatenteCarro]
+ON [cfl].[Camion] ([SapPatente], [SapCarro]);
 GO
 
-CREATE TABLE [cfl].[CFL_empresa_transporte] (
-    [id_empresa] BIGINT NOT NULL IDENTITY UNIQUE,
-    [sap_codigo] CHAR(3),
-    [rut] VARCHAR(20) NOT NULL,
-    [razon_social] VARCHAR(100),
-    [nombre_rep] VARCHAR(100),
-    [correo] VARCHAR(100),
-    [telefono] VARCHAR(20),
-    [activo] BIT NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_empresa])
+CREATE TABLE [cfl].[EmpresaTransporte] (
+    [IdEmpresa]              BIGINT NOT NULL IDENTITY UNIQUE,
+    [SapCodigo]              CHAR(3)      NULL,
+    [Rut]                    NVARCHAR(20)  NOT NULL,
+    [RazonSocial]            NVARCHAR(100) NULL,
+    [NombreRepresentante]    NVARCHAR(100) NULL,
+    [Correo]                 NVARCHAR(100) NULL,
+    [Telefono]               NVARCHAR(20)  NULL,
+    [Activo]                 BIT          NOT NULL,
+    [FechaCreacion]          DATETIME2(0) NOT NULL,
+    [FechaActualizacion]     DATETIME2(0) NOT NULL,
+    PRIMARY KEY ([IdEmpresa])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_empresa_rut]
-ON [cfl].[CFL_empresa_transporte] ([rut]);
+CREATE UNIQUE INDEX [UQ_EmpresaTransporte_Rut]
+ON [cfl].[EmpresaTransporte] ([Rut]);
 GO
 
-CREATE TABLE [cfl].[CFL_chofer] (
-    [id_chofer] BIGINT NOT NULL IDENTITY UNIQUE,
-    [sap_id_fiscal] VARCHAR(20) NOT NULL,
-    [sap_nombre] VARCHAR(80) NOT NULL,
-    [telefono] VARCHAR(20),
-    [activo] BIT NOT NULL,
-    PRIMARY KEY ([id_chofer])
+CREATE TABLE [cfl].[Chofer] (
+    [IdChofer]      BIGINT NOT NULL IDENTITY UNIQUE,
+    [SapIdFiscal]   NVARCHAR(20) NOT NULL,
+    [SapNombre]     NVARCHAR(80) NOT NULL,
+    [Telefono]      NVARCHAR(20) NULL,
+    [Activo]        BIT         NOT NULL,
+    PRIMARY KEY ([IdChofer])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_chofer_id_fiscal]
-ON [cfl].[CFL_chofer] ([sap_id_fiscal]);
+CREATE UNIQUE INDEX [UQ_Chofer_SapIdFiscal]
+ON [cfl].[Chofer] ([SapIdFiscal]);
 GO
 
-CREATE TABLE [cfl].[CFL_movil] (
-    [id_movil] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_chofer] BIGINT NOT NULL,
-    [id_empresa_transporte] BIGINT NOT NULL,
-    [id_camion] BIGINT NOT NULL,
-    [activo] BIT NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_movil])
+CREATE TABLE [cfl].[Movil] (
+    [IdMovil]               BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdChofer]              BIGINT       NOT NULL,
+    [IdEmpresaTransporte]   BIGINT       NOT NULL,
+    [IdCamion]              BIGINT       NOT NULL,
+    [Activo]                BIT          NOT NULL,
+    [FechaCreacion]         DATETIME2(0) NOT NULL,
+    [FechaActualizacion]    DATETIME2(0) NOT NULL,
+    PRIMARY KEY ([IdMovil])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_movil_combo]
-ON [cfl].[CFL_movil] ([id_empresa_transporte], [id_chofer], [id_camion]);
+CREATE UNIQUE INDEX [UQ_Movil_Combo]
+ON [cfl].[Movil] ([IdEmpresaTransporte], [IdChofer], [IdCamion]);
 GO
 
-CREATE TABLE [cfl].[CFL_detalle_viaje] (
-    [id_detalle_viaje] BIGINT NOT NULL IDENTITY UNIQUE,
-    [descripcion] VARCHAR(200) NOT NULL,
-    [observacion] VARCHAR(100),
-    [activo] BIT NOT NULL,
-    PRIMARY KEY ([id_detalle_viaje])
+CREATE TABLE [cfl].[DetalleViaje] (
+    [IdDetalleViaje]    BIGINT NOT NULL IDENTITY UNIQUE,
+    [Descripcion]       NVARCHAR(200) NOT NULL,
+    [Observacion]       NVARCHAR(100) NULL,
+    [Activo]            BIT          NOT NULL,
+    PRIMARY KEY ([IdDetalleViaje])
 );
 GO
 
-CREATE TABLE [cfl].[CFL_tipo_flete] (
-    [id_tipo_flete] BIGINT NOT NULL IDENTITY UNIQUE,
-    [sap_codigo] VARCHAR(20) NOT NULL,
-    [nombre] VARCHAR(100) NOT NULL,
-    [activo] BIT NOT NULL,
-    [id_centro_costo] BIGINT NOT NULL,
-    PRIMARY KEY ([id_tipo_flete])
+CREATE TABLE [cfl].[TipoFlete] (
+    [IdTipoFlete]   BIGINT NOT NULL IDENTITY UNIQUE,
+    [SapCodigo]     NVARCHAR(20)  NOT NULL,
+    [Nombre]        NVARCHAR(100) NOT NULL,
+    [Activo]        BIT          NOT NULL,
+    [IdCentroCosto] BIGINT       NOT NULL,
+    PRIMARY KEY ([IdTipoFlete])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_tipo_flete_sap]
-ON [cfl].[CFL_tipo_flete] ([sap_codigo]);
+CREATE UNIQUE INDEX [UQ_TipoFlete_SapCodigo]
+ON [cfl].[TipoFlete] ([SapCodigo]);
 GO
 
-CREATE TABLE [cfl].[CFL_tarifa] (
-    [id_tarifa] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_tipo_camion] BIGINT NOT NULL,
-    [id_temporada] BIGINT NOT NULL,
-    [id_ruta] BIGINT NOT NULL,
-    [vigencia_desde] DATE NOT NULL,
-    [vigencia_hasta] DATE,
-    [prioridad] INT NOT NULL,
-    [regla] VARCHAR(50) NOT NULL,
-    [moneda] CHAR(3) NOT NULL,
-    [monto_fijo] DECIMAL(18,2) NOT NULL,
-    [activo] BIT NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_tarifa])
+CREATE TABLE [cfl].[Tarifa] (
+    [IdTarifa]           BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdTipoCamion]       BIGINT        NOT NULL,
+    [IdTemporada]        BIGINT        NOT NULL,
+    [IdRuta]             BIGINT        NOT NULL,
+    [VigenciaDesde]      DATE          NOT NULL,
+    [VigenciaHasta]      DATE          NULL,
+    [Prioridad]          INT           NOT NULL,
+    [Regla]              NVARCHAR(50)   NOT NULL,
+    [Moneda]             CHAR(3)       NOT NULL,
+    [MontoFijo]          DECIMAL(18,2) NOT NULL,
+    [Activo]             BIT           NOT NULL,
+    [FechaCreacion]      DATETIME2(0)  NOT NULL,
+    [FechaActualizacion] DATETIME2(0)  NOT NULL,
+    PRIMARY KEY ([IdTarifa])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_tarifa_combo]
-ON [cfl].[CFL_tarifa] ([id_temporada], [id_tipo_camion], [id_ruta], [vigencia_desde], [regla], [prioridad]);
+CREATE UNIQUE INDEX [UQ_Tarifa_Combo]
+ON [cfl].[Tarifa] ([IdTemporada], [IdTipoCamion], [IdRuta], [VigenciaDesde], [Regla], [Prioridad]);
 GO
 
-CREATE TABLE [cfl].[CFL_especie] (
-    [id_especie] BIGINT NOT NULL IDENTITY UNIQUE,
-    [glosa] VARCHAR(50) NOT NULL,
-    PRIMARY KEY ([id_especie])
+CREATE TABLE [cfl].[Especie] (
+    [IdEspecie] BIGINT NOT NULL IDENTITY UNIQUE,
+    [Glosa]     NVARCHAR(50) NOT NULL,
+    PRIMARY KEY ([IdEspecie])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_especie_glosa]
-ON [cfl].[CFL_especie] ([glosa]);
+CREATE UNIQUE INDEX [UQ_Especie_Glosa]
+ON [cfl].[Especie] ([Glosa]);
 GO
 
-CREATE TABLE [cfl].[CFL_cabecera_flete] (
-    [id_cabecera_flete] BIGINT NOT NULL IDENTITY UNIQUE,
-    [sap_numero_entrega] VARCHAR(20),
-    [sap_codigo_tipo_flete] CHAR(4),
-    [sap_centro_costo] CHAR(10),
-    [sap_cuenta_mayor] CHAR(10),
-    [sap_guia_remision] CHAR(25),
-    [numero_entrega] VARCHAR(20),
-    [guia_remision] CHAR(25),
-    [tipo_movimiento] VARCHAR(4) NOT NULL,
-    [estado] VARCHAR(20) NOT NULL,
-    [fecha_salida] DATE NOT NULL,
-    [hora_salida] TIME NOT NULL,
-    [monto_aplicado] DECIMAL(18,2) NOT NULL,
-    [observaciones] VARCHAR(200),
-    [id_cuenta_mayor] BIGINT NULL,
-    [id_centro_costo] BIGINT NOT NULL,
-    [id_folio] BIGINT,
-    [id_tipo_flete] BIGINT NOT NULL,
-    [id_detalle_viaje] BIGINT,
-    [id_movil] BIGINT,
-    [id_tarifa] BIGINT,
-    [id_usuario_creador] BIGINT,
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_cabecera_flete]),
-    CONSTRAINT [CK_CFL_cabecera_flete_tipo_movimiento] CHECK ([tipo_movimiento] IN ('PUSH','PULL'))
+/* ============================================================
+   TABLA: cfl.Productor
+   Fuente de carga principal: dbo.Sap_BP
+============================================================ */
+CREATE TABLE [cfl].[Productor] (
+    [IdProductor]            BIGINT NOT NULL IDENTITY UNIQUE,
+    [CodigoProveedor]        NVARCHAR(20)  NOT NULL,
+    [Rut]                    NVARCHAR(20)  NULL,
+    [Nombre]                 NVARCHAR(150) NOT NULL,
+    [Pais]                   CHAR(2)       NULL,
+    [Region]                 NVARCHAR(10)  NULL,
+    [Comuna]                 NVARCHAR(100) NULL,
+    [Distrito]               NVARCHAR(100) NULL,
+    [Calle]                  NVARCHAR(150) NULL,
+    [Email]                  NVARCHAR(150) NULL,
+    [OrganizacionCompra]     NVARCHAR(10)  NULL,
+    [MonedaPedido]           CHAR(3)       NULL,
+    [CondicionPago]          NVARCHAR(20)  NULL,
+    [Incoterm]               NVARCHAR(10)  NULL,
+    [Sociedad]               NVARCHAR(10)  NULL,
+    [CuentaAsociada]         NVARCHAR(30)  NULL,
+    [Activo]                 BIT           NOT NULL,
+    [FechaActualizacionSap]  DATETIME2(3)  NULL,
+    [FechaCreacion]          DATETIME2(0)  NOT NULL,
+    [FechaActualizacion]     DATETIME2(0)  NOT NULL,
+    PRIMARY KEY ([IdProductor])
 );
 GO
 
-CREATE INDEX [IX_flete_folio_estado]
-ON [cfl].[CFL_cabecera_flete] ([id_folio], [estado]);
+CREATE UNIQUE INDEX [UQ_Productor_CodigoProveedor]
+ON [cfl].[Productor] ([CodigoProveedor]);
 GO
 
-
-CREATE INDEX [IX_CFL_cabecera_flete_id_cuenta_mayor]
-ON [cfl].[CFL_cabecera_flete] ([id_cuenta_mayor]);
+CREATE INDEX [IX_Productor_Rut]
+ON [cfl].[Productor] ([Rut]);
 GO
 
-CREATE TABLE [cfl].[CFL_detalle_flete] (
-    [id_detalle_flete] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_cabecera_flete] BIGINT NOT NULL,
-    [id_especie] BIGINT,
-    [material] VARCHAR(50),
-    [descripcion] VARCHAR(100),
-    [cantidad] DECIMAL(12,2),
-    [unidad] CHAR(3),
-    [peso] DECIMAL(15,3),
-    [created_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_detalle_flete])
+/* ============================================================
+   TABLA: cfl.CabeceraFlete  (ex CFL_cabecera_flete)
+   Incluye IdFactura (migración 20250309)
+============================================================ */
+CREATE TABLE [cfl].[CabeceraFlete] (
+    [IdCabeceraFlete]    BIGINT NOT NULL IDENTITY UNIQUE,
+    [SapNumeroEntrega]   NVARCHAR(20)   NULL,
+    [SapCodigoTipoFlete] CHAR(4)       NULL,
+    [SapCentroCosto]     CHAR(10)      NULL,
+    [SapCuentaMayor]     CHAR(10)      NULL,
+    [SapGuiaRemision]    CHAR(25)      NULL,
+    [NumeroEntrega]      NVARCHAR(20)   NULL,
+    [GuiaRemision]       CHAR(25)      NULL,
+    [TipoMovimiento]     NVARCHAR(4)    NOT NULL,
+    [Estado]             NVARCHAR(20)   NOT NULL,
+    [FechaSalida]        DATE          NOT NULL,
+    [HoraSalida]         TIME          NOT NULL,
+    [MontoAplicado]      DECIMAL(18,2) NOT NULL,
+    [Observaciones]      NVARCHAR(200)  NULL,
+    [IdCuentaMayor]      BIGINT        NULL,
+    [IdCentroCosto]      BIGINT        NOT NULL,
+    [IdProductor]        BIGINT        NULL,
+    [IdFolio]            BIGINT        NULL,
+    [SentidoFlete]       NVARCHAR(20)   NULL,
+    [IdTipoFlete]        BIGINT        NOT NULL,
+    [IdDetalleViaje]     BIGINT        NULL,
+    [IdMovil]            BIGINT        NULL,
+    [IdTarifa]           BIGINT        NULL,
+    [IdUsuarioCreador]   BIGINT        NULL,
+    [IdFactura]          BIGINT        NULL,
+    [FechaCreacion]      DATETIME2(0)  NOT NULL,
+    [FechaActualizacion] DATETIME2(0)  NOT NULL,
+    PRIMARY KEY ([IdCabeceraFlete]),
+    CONSTRAINT [CK_CabeceraFlete_TipoMovimiento] CHECK ([TipoMovimiento] IN ('PUSH','PULL'))
 );
 GO
 
-CREATE TABLE [cfl].[CFL_flete_estado_historial] (
-    [id_flete_estado_historial] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_cabecera_flete] BIGINT NOT NULL,
-    [estado] VARCHAR(20) NOT NULL,
-    [fecha_hora] DATETIME2(0) NOT NULL,
-    [id_usuario] BIGINT NOT NULL,
-    [motivo] VARCHAR(200),
-    [evidencia_ref] VARCHAR(100),
-    PRIMARY KEY ([id_flete_estado_historial])
+CREATE INDEX [IX_CabeceraFlete_FolioEstado]
+ON [cfl].[CabeceraFlete] ([IdFolio], [Estado]);
+GO
+
+CREATE INDEX [IX_CabeceraFlete_IdCuentaMayor]
+ON [cfl].[CabeceraFlete] ([IdCuentaMayor]);
+GO
+
+CREATE INDEX [IX_CabeceraFlete_IdProductor]
+ON [cfl].[CabeceraFlete] ([IdProductor]);
+GO
+
+CREATE INDEX [IX_CabeceraFlete_IdFactura]
+ON [cfl].[CabeceraFlete] ([IdFactura])
+WHERE [IdFactura] IS NOT NULL;
+GO
+
+/* ============================================================
+   TABLA: cfl.DetalleFlete  (ex CFL_detalle_flete)
+============================================================ */
+CREATE TABLE [cfl].[DetalleFlete] (
+    [IdDetalleFlete]    BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdCabeceraFlete]   BIGINT        NOT NULL,
+    [IdEspecie]         BIGINT        NULL,
+    [Material]          NVARCHAR(50)   NULL,
+    [Descripcion]       NVARCHAR(100)  NULL,
+    [Cantidad]          DECIMAL(12,2) NULL,
+    [Unidad]            CHAR(3)       NULL,
+    [Peso]              DECIMAL(15,3) NULL,
+    [FechaCreacion]     DATETIME2(0)  NOT NULL,
+    PRIMARY KEY ([IdDetalleFlete])
 );
 GO
 
-CREATE TABLE [cfl].[CFL_cabecera_factura] (
-    [id_factura] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_folio] BIGINT NOT NULL,
-    [id_empresa] BIGINT NOT NULL,
-    [numero_factura] VARCHAR(40) NOT NULL,
-    [fecha_emision] DATETIME2(0) NOT NULL,
-    [moneda] CHAR(3) NOT NULL,
-    [monto_neto] DECIMAL(18,2) NOT NULL,
-    [monto_iva] DECIMAL(18,2) NOT NULL,
-    [monto_total] DECIMAL(18,2) NOT NULL,
-    [estado] VARCHAR(20) NOT NULL,
-    [ruta_xml] VARCHAR(255),
-    [ruta_pdf] VARCHAR(255),
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_factura])
+/* ============================================================
+   TABLA: cfl.FleteEstadoHistorial  (ex CFL_flete_estado_historial)
+============================================================ */
+CREATE TABLE [cfl].[FleteEstadoHistorial] (
+    [IdFleteEstadoHistorial] BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdCabeceraFlete]        BIGINT       NOT NULL,
+    [Estado]                 NVARCHAR(20)  NOT NULL,
+    [FechaHora]              DATETIME2(0) NOT NULL,
+    [IdUsuario]              BIGINT       NOT NULL,
+    [Motivo]                 NVARCHAR(200) NULL,
+    [EvidenciaRef]           NVARCHAR(100) NULL,
+    PRIMARY KEY ([IdFleteEstadoHistorial])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_factura_empresa_numero]
-ON [cfl].[CFL_cabecera_factura] ([id_empresa], [numero_factura]);
-GO
-
-CREATE TABLE [cfl].[CFL_detalle_factura] (
-    [id_factura_detalle] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_factura] BIGINT NOT NULL,
-    [monto_linea] DECIMAL(18,2),
-    [detalle] VARCHAR(200),
-    PRIMARY KEY ([id_factura_detalle])
+/* ============================================================
+   TABLA: cfl.CabeceraFactura  (ex CFL_cabecera_factura)
+   Incluye CriterioAgrupacion, Observaciones (módulo facturación)
+   IdFolio es nullable (bridge FacturaFolio cubre n:m)
+============================================================ */
+CREATE TABLE [cfl].[CabeceraFactura] (
+    [IdFactura]           BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdFolio]             BIGINT        NULL,
+    [IdEmpresa]           BIGINT        NOT NULL,
+    [NumeroFactura]       NVARCHAR(40)   NOT NULL,
+    [FechaEmision]        DATETIME2(0)  NOT NULL,
+    [Moneda]              CHAR(3)       NOT NULL,
+    [MontoNeto]           DECIMAL(18,2) NOT NULL,
+    [MontoIva]            DECIMAL(18,2) NOT NULL,
+    [MontoTotal]          DECIMAL(18,2) NOT NULL,
+    [Estado]              NVARCHAR(20)   NOT NULL,
+    [CriterioAgrupacion]  NVARCHAR(20)   NULL,
+    [Observaciones]       NVARCHAR(200)  NULL,
+    [RutaXml]             NVARCHAR(255)  NULL,
+    [RutaPdf]             NVARCHAR(255)  NULL,
+    [FechaCreacion]       DATETIME2(0)  NOT NULL,
+    [FechaActualizacion]  DATETIME2(0)  NOT NULL,
+    PRIMARY KEY ([IdFactura])
 );
 GO
 
-CREATE TABLE [cfl].[CFL_conciliacion_factura_flete] (
-    [id_conciliacion] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_factura] BIGINT NOT NULL,
-    [id_cabecera_flete] BIGINT NOT NULL,
-    [monto_asignado] DECIMAL(18,2) NOT NULL,
-    [diferencia] DECIMAL(18,2) NOT NULL,
-    [tolerancia_aplicada] DECIMAL(18,2) NOT NULL,
-    [estado] VARCHAR(20) NOT NULL,
-    [observacion] VARCHAR(300),
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_conciliacion])
+CREATE UNIQUE INDEX [UQ_CabeceraFactura_EmpresaNumero]
+ON [cfl].[CabeceraFactura] ([IdEmpresa], [NumeroFactura]);
+GO
+
+/* ============================================================
+   TABLA: cfl.FacturaFolio  (nueva — bridge factura ↔ folio)
+============================================================ */
+CREATE TABLE [cfl].[FacturaFolio] (
+    [IdFacturaFolio]  BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdFactura]       BIGINT       NOT NULL,
+    [IdFolio]         BIGINT       NOT NULL,
+    [FechaCreacion]   DATETIME2(0) NOT NULL,
+    PRIMARY KEY ([IdFacturaFolio])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_conciliacion_factura_flete]
-ON [cfl].[CFL_conciliacion_factura_flete] ([id_factura], [id_cabecera_flete]);
+CREATE UNIQUE INDEX [UQ_FacturaFolio_FacturaFolio]
+ON [cfl].[FacturaFolio] ([IdFactura], [IdFolio]);
 GO
 
-CREATE TABLE [cfl].[CFL_flete_sap_entrega] (
-    [id_flete_sap_entrega] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_cabecera_flete] BIGINT NOT NULL,
-    [id_sap_entrega] BIGINT NOT NULL,
-    [origen_datos] VARCHAR(10) NOT NULL,
-    [tipo_relacion] VARCHAR(20) NOT NULL,
-    [created_at] DATETIME2(0) NOT NULL,
-    [created_by] BIGINT,
-    PRIMARY KEY ([id_flete_sap_entrega])
+/* ============================================================
+   TABLA: cfl.DetalleFactura  (ex CFL_detalle_factura)
+============================================================ */
+CREATE TABLE [cfl].[DetalleFactura] (
+    [IdFacturaDetalle]  BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdFactura]         BIGINT        NOT NULL,
+    [MontoLinea]        DECIMAL(18,2) NULL,
+    [Detalle]           NVARCHAR(200)  NULL,
+    PRIMARY KEY ([IdFacturaDetalle])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_flete_entrega_bridge]
-ON [cfl].[CFL_flete_sap_entrega] ([id_cabecera_flete], [id_sap_entrega]);
-GO
-
-CREATE TABLE [cfl].[CFL_usuario] (
-    [id_usuario] BIGINT IDENTITY UNIQUE,
-    [username] VARCHAR(60) NOT NULL,
-    [email] VARCHAR(200) NOT NULL,
-    [password_hash] VARCHAR(255) NOT NULL,
-    [nombre] VARCHAR(100),
-    [apellido] VARCHAR(100),
-    [activo] BIT NOT NULL,
-    [ultimo_login] DATETIME2(0),
-    [created_at] DATETIME2(0) NOT NULL,
-    [updated_at] DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([id_usuario])
+/* ============================================================
+   TABLA: cfl.ConciliacionFacturaFlete  (ex CFL_conciliacion_factura_flete)
+============================================================ */
+CREATE TABLE [cfl].[ConciliacionFacturaFlete] (
+    [IdConciliacion]        BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdFactura]             BIGINT        NOT NULL,
+    [IdCabeceraFlete]       BIGINT        NOT NULL,
+    [MontoAsignado]         DECIMAL(18,2) NOT NULL,
+    [Diferencia]            DECIMAL(18,2) NOT NULL,
+    [ToleranciaAplicada]    DECIMAL(18,2) NOT NULL,
+    [Estado]                NVARCHAR(20)   NOT NULL,
+    [Observacion]           NVARCHAR(300)  NULL,
+    [FechaCreacion]         DATETIME2(0)  NOT NULL,
+    [FechaActualizacion]    DATETIME2(0)  NOT NULL,
+    PRIMARY KEY ([IdConciliacion])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_usuario_username]
-ON [cfl].[CFL_usuario] ([username]);
+CREATE UNIQUE INDEX [UQ_ConciliacionFacturaFlete_FacturaFlete]
+ON [cfl].[ConciliacionFacturaFlete] ([IdFactura], [IdCabeceraFlete]);
 GO
 
-CREATE UNIQUE INDEX [UX_usuario_email]
-ON [cfl].[CFL_usuario] ([email]);
-GO
-
-CREATE TABLE [cfl].[CFL_rol] (
-    [id_rol] BIGINT NOT NULL IDENTITY UNIQUE,
-    [nombre] VARCHAR(50) NOT NULL,
-    [descripcion] VARCHAR(100),
-    [activo] BIT NOT NULL,
-    PRIMARY KEY ([id_rol])
+/* ============================================================
+   TABLA: cfl.FleteSapEntrega  (ex CFL_flete_sap_entrega)
+============================================================ */
+CREATE TABLE [cfl].[FleteSapEntrega] (
+    [IdFleteSapEntrega] BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdCabeceraFlete]   BIGINT       NOT NULL,
+    [IdSapEntrega]      BIGINT       NOT NULL,
+    [OrigenDatos]       NVARCHAR(10)  NOT NULL,
+    [TipoRelacion]      NVARCHAR(20)  NOT NULL,
+    [FechaCreacion]     DATETIME2(0) NOT NULL,
+    [CreadoPor]         BIGINT       NULL,
+    PRIMARY KEY ([IdFleteSapEntrega])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_rol_nombre]
-ON [cfl].[CFL_rol] ([nombre]);
+CREATE UNIQUE INDEX [UQ_FleteSapEntrega_Bridge]
+ON [cfl].[FleteSapEntrega] ([IdCabeceraFlete], [IdSapEntrega]);
 GO
 
-CREATE TABLE [cfl].[CFL_permiso] (
-    [id_permiso] BIGINT NOT NULL IDENTITY UNIQUE,
-    [recurso] VARCHAR(100) NOT NULL,
-    [accion] VARCHAR(20) NOT NULL,
-    [clave] VARCHAR(50) NOT NULL,
-    [descripcion] VARCHAR(100),
-    [activo] BIT NOT NULL,
-    PRIMARY KEY ([id_permiso])
+/* ============================================================
+   TABLAS: seguridad
+============================================================ */
+CREATE TABLE [cfl].[Usuario] (
+    [IdUsuario]          BIGINT IDENTITY UNIQUE,
+    [Username]           NVARCHAR(60)  NOT NULL,
+    [Email]              NVARCHAR(200) NOT NULL,
+    [PasswordHash]       NVARCHAR(255) NOT NULL,
+    [Nombre]             NVARCHAR(100) NULL,
+    [Apellido]           NVARCHAR(100) NULL,
+    [Activo]             BIT          NOT NULL,
+    [UltimoLogin]        DATETIME2(0) NULL,
+    [FechaCreacion]      DATETIME2(0) NOT NULL,
+    [FechaActualizacion] DATETIME2(0) NOT NULL,
+    PRIMARY KEY ([IdUsuario])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_permiso_clave]
-ON [cfl].[CFL_permiso] ([clave]);
+CREATE UNIQUE INDEX [UQ_Usuario_Username]
+ON [cfl].[Usuario] ([Username]);
 GO
 
-CREATE TABLE [cfl].[CFL_usuario_rol] (
-    [id_usuario_rol] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_usuario] BIGINT NOT NULL,
-    [id_rol] BIGINT NOT NULL,
-    PRIMARY KEY ([id_usuario_rol])
+CREATE UNIQUE INDEX [UQ_Usuario_Email]
+ON [cfl].[Usuario] ([Email]);
+GO
+
+CREATE TABLE [cfl].[Rol] (
+    [IdRol]       BIGINT NOT NULL IDENTITY UNIQUE,
+    [Nombre]      NVARCHAR(50)  NOT NULL,
+    [Descripcion] NVARCHAR(100) NULL,
+    [Activo]      BIT          NOT NULL,
+    PRIMARY KEY ([IdRol])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_usuario_rol]
-ON [cfl].[CFL_usuario_rol] ([id_usuario], [id_rol]);
+CREATE UNIQUE INDEX [UQ_Rol_Nombre]
+ON [cfl].[Rol] ([Nombre]);
 GO
 
-CREATE TABLE [cfl].[CFL_rol_permiso] (
-    [id_rol_permiso] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_rol] BIGINT NOT NULL,
-    [id_permiso] BIGINT NOT NULL,
-    PRIMARY KEY ([id_rol_permiso])
+CREATE TABLE [cfl].[Permiso] (
+    [IdPermiso]   BIGINT NOT NULL IDENTITY UNIQUE,
+    [Recurso]     NVARCHAR(100) NOT NULL,
+    [Accion]      NVARCHAR(20)  NOT NULL,
+    [Clave]       NVARCHAR(50)  NOT NULL,
+    [Descripcion] NVARCHAR(100) NULL,
+    [Activo]      BIT          NOT NULL,
+    PRIMARY KEY ([IdPermiso])
 );
 GO
 
-CREATE UNIQUE INDEX [UX_rol_permiso]
-ON [cfl].[CFL_rol_permiso] ([id_rol], [id_permiso]);
+CREATE UNIQUE INDEX [UQ_Permiso_Clave]
+ON [cfl].[Permiso] ([Clave]);
 GO
 
-CREATE TABLE [cfl].[CFL_auditoria] (
-    [id_auditoria] BIGINT NOT NULL IDENTITY UNIQUE,
-    [id_usuario] BIGINT NOT NULL,
-    [fecha_hora] DATETIME2(0) NOT NULL,
-    [accion] VARCHAR(50) NOT NULL,
-    [entidad] VARCHAR(100) NOT NULL,
-    [id_entidad] VARCHAR(50),
-    [resumen] VARCHAR(300),
-    [ip_equipo] VARCHAR(50),
-    PRIMARY KEY ([id_auditoria])
+CREATE TABLE [cfl].[UsuarioRol] (
+    [IdUsuarioRol]  BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdUsuario]     BIGINT NOT NULL,
+    [IdRol]         BIGINT NOT NULL,
+    PRIMARY KEY ([IdUsuarioRol])
 );
 GO
 
-/* =========================
-   FOREIGN KEYS (con nombres)
-========================= */
-ALTER TABLE [cfl].[CFL_sap_likp_raw]
-ADD CONSTRAINT [FK_CFL_sap_likp_raw_execution_id_CFL_etl_run]
-FOREIGN KEY ([execution_id]) REFERENCES [cfl].[CFL_etl_run] ([execution_id])
+CREATE UNIQUE INDEX [UQ_UsuarioRol_UsuarioRol]
+ON [cfl].[UsuarioRol] ([IdUsuario], [IdRol]);
+GO
+
+CREATE TABLE [cfl].[RolPermiso] (
+    [IdRolPermiso]  BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdRol]         BIGINT NOT NULL,
+    [IdPermiso]     BIGINT NOT NULL,
+    PRIMARY KEY ([IdRolPermiso])
+);
+GO
+
+CREATE UNIQUE INDEX [UQ_RolPermiso_RolPermiso]
+ON [cfl].[RolPermiso] ([IdRol], [IdPermiso]);
+GO
+
+CREATE TABLE [cfl].[Auditoria] (
+    [IdAuditoria]   BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdUsuario]     BIGINT       NOT NULL,
+    [FechaHora]     DATETIME2(0) NOT NULL,
+    [Accion]        NVARCHAR(50)  NOT NULL,
+    [Entidad]       NVARCHAR(100) NOT NULL,
+    [IdEntidad]     NVARCHAR(50)  NULL,
+    [Resumen]       NVARCHAR(300) NULL,
+    [IpEquipo]      NVARCHAR(50)  NULL,
+    PRIMARY KEY ([IdAuditoria])
+);
+GO
+
+/* ============================================================
+   FOREIGN KEYS
+============================================================ */
+
+-- EtlEjecucion no tiene FKs entrantes relevantes en UP
+
+-- SapLikpRaw → EtlEjecucion
+ALTER TABLE [cfl].[SapLikpRaw]
+ADD CONSTRAINT [FK_SapLikpRaw_EtlEjecucion]
+FOREIGN KEY ([IdEjecucion]) REFERENCES [cfl].[EtlEjecucion] ([IdEjecucion])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_sap_lips_raw]
-ADD CONSTRAINT [FK_CFL_sap_lips_raw_execution_id_CFL_etl_run]
-FOREIGN KEY ([execution_id]) REFERENCES [cfl].[CFL_etl_run] ([execution_id])
+-- SapLipsRaw → EtlEjecucion
+ALTER TABLE [cfl].[SapLipsRaw]
+ADD CONSTRAINT [FK_SapLipsRaw_EtlEjecucion]
+FOREIGN KEY ([IdEjecucion]) REFERENCES [cfl].[EtlEjecucion] ([IdEjecucion])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_sap_entrega_hist]
-ADD CONSTRAINT [FK_CFL_sap_entrega_hist_id_sap_entrega_CFL_sap_entrega]
-FOREIGN KEY ([id_sap_entrega]) REFERENCES [cfl].[CFL_sap_entrega] ([id_sap_entrega])
+-- SapEntregaHistorial → SapEntrega
+ALTER TABLE [cfl].[SapEntregaHistorial]
+ADD CONSTRAINT [FK_SapEntregaHistorial_SapEntrega]
+FOREIGN KEY ([IdSapEntrega]) REFERENCES [cfl].[SapEntrega] ([IdSapEntrega])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_sap_entrega_hist]
-ADD CONSTRAINT [FK_CFL_sap_entrega_hist_raw_likp_id_CFL_sap_likp_raw]
-FOREIGN KEY ([raw_likp_id]) REFERENCES [cfl].[CFL_sap_likp_raw] ([raw_id])
+-- SapEntregaHistorial → SapLikpRaw
+ALTER TABLE [cfl].[SapEntregaHistorial]
+ADD CONSTRAINT [FK_SapEntregaHistorial_SapLikpRaw]
+FOREIGN KEY ([IdLikpRaw]) REFERENCES [cfl].[SapLikpRaw] ([IdSapLikpRaw])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_sap_entrega_posicion]
-ADD CONSTRAINT [FK_CFL_sap_entrega_posicion_id_sap_entrega_CFL_sap_entrega]
-FOREIGN KEY ([id_sap_entrega]) REFERENCES [cfl].[CFL_sap_entrega] ([id_sap_entrega])
+-- SapEntregaPosicion → SapEntrega
+ALTER TABLE [cfl].[SapEntregaPosicion]
+ADD CONSTRAINT [FK_SapEntregaPosicion_SapEntrega]
+FOREIGN KEY ([IdSapEntrega]) REFERENCES [cfl].[SapEntrega] ([IdSapEntrega])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_sap_entrega_posicion_hist]
-ADD CONSTRAINT [FK_CFL_sap_entrega_posicion_hist_id_sap_entrega_posicion_CFL_sap_entrega_posicion]
-FOREIGN KEY ([id_sap_entrega_posicion]) REFERENCES [cfl].[CFL_sap_entrega_posicion] ([id_sap_entrega_posicion])
+-- SapEntregaPosicionHistorial → SapEntregaPosicion
+ALTER TABLE [cfl].[SapEntregaPosicionHistorial]
+ADD CONSTRAINT [FK_SapEntregaPosicionHistorial_SapEntregaPosicion]
+FOREIGN KEY ([IdSapEntregaPosicion]) REFERENCES [cfl].[SapEntregaPosicion] ([IdSapEntregaPosicion])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_sap_entrega_posicion_hist]
-ADD CONSTRAINT [FK_CFL_sap_entrega_posicion_hist_raw_lips_id_CFL_sap_lips_raw]
-FOREIGN KEY ([raw_lips_id]) REFERENCES [cfl].[CFL_sap_lips_raw] ([raw_id])
+-- SapEntregaPosicionHistorial → SapLipsRaw
+ALTER TABLE [cfl].[SapEntregaPosicionHistorial]
+ADD CONSTRAINT [FK_SapEntregaPosicionHistorial_SapLipsRaw]
+FOREIGN KEY ([IdLipsRaw]) REFERENCES [cfl].[SapLipsRaw] ([IdSapLipsRaw])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_folio]
-ADD CONSTRAINT [FK_CFL_folio_id_centro_costo_CFL_centro_costo]
-FOREIGN KEY ([id_centro_costo]) REFERENCES [cfl].[CFL_centro_costo] ([id_centro_costo])
+-- SapEntregaDescarte → SapEntrega
+ALTER TABLE [cfl].[SapEntregaDescarte]
+ADD CONSTRAINT [FK_SapEntregaDescarte_SapEntrega]
+FOREIGN KEY ([IdSapEntrega]) REFERENCES [cfl].[SapEntrega] ([IdSapEntrega])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_folio]
-ADD CONSTRAINT [FK_CFL_folio_id_temporada_CFL_temporada]
-FOREIGN KEY ([id_temporada]) REFERENCES [cfl].[CFL_temporada] ([id_temporada])
+-- SapEntregaDescarte → Usuario (creador)
+ALTER TABLE [cfl].[SapEntregaDescarte]
+ADD CONSTRAINT [FK_SapEntregaDescarte_UsuarioCreadoPor]
+FOREIGN KEY ([CreadoPor]) REFERENCES [cfl].[Usuario] ([IdUsuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_ruta]
-ADD CONSTRAINT [FK_CFL_ruta_id_origen_nodo_CFL_nodo_logistico]
-FOREIGN KEY ([id_origen_nodo]) REFERENCES [cfl].[CFL_nodo_logistico] ([id_nodo])
+-- SapEntregaDescarte → Usuario (restaurador)
+ALTER TABLE [cfl].[SapEntregaDescarte]
+ADD CONSTRAINT [FK_SapEntregaDescarte_UsuarioRestauradoPor]
+FOREIGN KEY ([RestauradoPor]) REFERENCES [cfl].[Usuario] ([IdUsuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_ruta]
-ADD CONSTRAINT [FK_CFL_ruta_id_destino_nodo_CFL_nodo_logistico]
-FOREIGN KEY ([id_destino_nodo]) REFERENCES [cfl].[CFL_nodo_logistico] ([id_nodo])
+-- Temporada → Usuario (cierre)
+ALTER TABLE [cfl].[Temporada]
+ADD CONSTRAINT [FK_Temporada_UsuarioCierre]
+FOREIGN KEY ([IdUsuarioCierre]) REFERENCES [cfl].[Usuario] ([IdUsuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_camion]
-ADD CONSTRAINT [FK_CFL_camion_id_tipo_camion_CFL_tipo_camion]
-FOREIGN KEY ([id_tipo_camion]) REFERENCES [cfl].[CFL_tipo_camion] ([id_tipo_camion])
+-- Folio → CentroCosto
+ALTER TABLE [cfl].[Folio]
+ADD CONSTRAINT [FK_Folio_CentroCosto]
+FOREIGN KEY ([IdCentroCosto]) REFERENCES [cfl].[CentroCosto] ([IdCentroCosto])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_movil]
-ADD CONSTRAINT [FK_CFL_movil_id_camion_CFL_camion]
-FOREIGN KEY ([id_camion]) REFERENCES [cfl].[CFL_camion] ([id_camion])
+-- Folio → Temporada
+ALTER TABLE [cfl].[Folio]
+ADD CONSTRAINT [FK_Folio_Temporada]
+FOREIGN KEY ([IdTemporada]) REFERENCES [cfl].[Temporada] ([IdTemporada])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_movil]
-ADD CONSTRAINT [FK_CFL_movil_id_chofer_CFL_chofer]
-FOREIGN KEY ([id_chofer]) REFERENCES [cfl].[CFL_chofer] ([id_chofer])
+-- Folio → Usuario (cierre)
+ALTER TABLE [cfl].[Folio]
+ADD CONSTRAINT [FK_Folio_UsuarioCierre]
+FOREIGN KEY ([IdUsuarioCierre]) REFERENCES [cfl].[Usuario] ([IdUsuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_movil]
-ADD CONSTRAINT [FK_CFL_movil_id_empresa_transporte_CFL_empresa_transporte]
-FOREIGN KEY ([id_empresa_transporte]) REFERENCES [cfl].[CFL_empresa_transporte] ([id_empresa])
+-- Ruta → NodoLogistico (origen)
+ALTER TABLE [cfl].[Ruta]
+ADD CONSTRAINT [FK_Ruta_NodoLogisticoOrigen]
+FOREIGN KEY ([IdOrigenNodo]) REFERENCES [cfl].[NodoLogistico] ([IdNodo])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_tipo_flete]
-ADD CONSTRAINT [FK_CFL_tipo_flete_id_centro_costo_CFL_centro_costo]
-FOREIGN KEY ([id_centro_costo]) REFERENCES [cfl].[CFL_centro_costo] ([id_centro_costo])
+-- Ruta → NodoLogistico (destino)
+ALTER TABLE [cfl].[Ruta]
+ADD CONSTRAINT [FK_Ruta_NodoLogisticoDestino]
+FOREIGN KEY ([IdDestinoNodo]) REFERENCES [cfl].[NodoLogistico] ([IdNodo])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_tarifa]
-ADD CONSTRAINT [FK_CFL_tarifa_id_temporada_CFL_temporada]
-FOREIGN KEY ([id_temporada]) REFERENCES [cfl].[CFL_temporada] ([id_temporada])
+-- Camion → TipoCamion
+ALTER TABLE [cfl].[Camion]
+ADD CONSTRAINT [FK_Camion_TipoCamion]
+FOREIGN KEY ([IdTipoCamion]) REFERENCES [cfl].[TipoCamion] ([IdTipoCamion])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_tarifa]
-ADD CONSTRAINT [FK_CFL_tarifa_id_ruta_CFL_ruta]
-FOREIGN KEY ([id_ruta]) REFERENCES [cfl].[CFL_ruta] ([id_ruta])
+-- Movil → Camion
+ALTER TABLE [cfl].[Movil]
+ADD CONSTRAINT [FK_Movil_Camion]
+FOREIGN KEY ([IdCamion]) REFERENCES [cfl].[Camion] ([IdCamion])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_tarifa]
-ADD CONSTRAINT [FK_CFL_tarifa_id_tipo_camion_CFL_tipo_camion]
-FOREIGN KEY ([id_tipo_camion]) REFERENCES [cfl].[CFL_tipo_camion] ([id_tipo_camion])
+-- Movil → Chofer
+ALTER TABLE [cfl].[Movil]
+ADD CONSTRAINT [FK_Movil_Chofer]
+FOREIGN KEY ([IdChofer]) REFERENCES [cfl].[Chofer] ([IdChofer])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_cabecera_flete]
-ADD CONSTRAINT [FK_CFL_cabecera_flete_id_folio_CFL_folio]
-FOREIGN KEY ([id_folio]) REFERENCES [cfl].[CFL_folio] ([id_folio])
+-- Movil → EmpresaTransporte
+ALTER TABLE [cfl].[Movil]
+ADD CONSTRAINT [FK_Movil_EmpresaTransporte]
+FOREIGN KEY ([IdEmpresaTransporte]) REFERENCES [cfl].[EmpresaTransporte] ([IdEmpresa])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_cabecera_flete]
-ADD CONSTRAINT [FK_CFL_cabecera_flete_id_tipo_flete_CFL_tipo_flete]
-FOREIGN KEY ([id_tipo_flete]) REFERENCES [cfl].[CFL_tipo_flete] ([id_tipo_flete])
+-- TipoFlete → CentroCosto
+ALTER TABLE [cfl].[TipoFlete]
+ADD CONSTRAINT [FK_TipoFlete_CentroCosto]
+FOREIGN KEY ([IdCentroCosto]) REFERENCES [cfl].[CentroCosto] ([IdCentroCosto])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_cabecera_flete]
-ADD CONSTRAINT [FK_CFL_cabecera_flete_id_detalle_viaje_CFL_detalle_viaje]
-FOREIGN KEY ([id_detalle_viaje]) REFERENCES [cfl].[CFL_detalle_viaje] ([id_detalle_viaje])
+-- Tarifa → Temporada
+ALTER TABLE [cfl].[Tarifa]
+ADD CONSTRAINT [FK_Tarifa_Temporada]
+FOREIGN KEY ([IdTemporada]) REFERENCES [cfl].[Temporada] ([IdTemporada])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_cabecera_flete]
-ADD CONSTRAINT [FK_CFL_cabecera_flete_id_movil_CFL_movil]
-FOREIGN KEY ([id_movil]) REFERENCES [cfl].[CFL_movil] ([id_movil])
+-- Tarifa → Ruta
+ALTER TABLE [cfl].[Tarifa]
+ADD CONSTRAINT [FK_Tarifa_Ruta]
+FOREIGN KEY ([IdRuta]) REFERENCES [cfl].[Ruta] ([IdRuta])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_cabecera_flete]
-ADD CONSTRAINT [FK_CFL_cabecera_flete_id_tarifa_CFL_tarifa]
-FOREIGN KEY ([id_tarifa]) REFERENCES [cfl].[CFL_tarifa] ([id_tarifa])
+-- Tarifa → TipoCamion
+ALTER TABLE [cfl].[Tarifa]
+ADD CONSTRAINT [FK_Tarifa_TipoCamion]
+FOREIGN KEY ([IdTipoCamion]) REFERENCES [cfl].[TipoCamion] ([IdTipoCamion])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_detalle_flete]
-ADD CONSTRAINT [FK_CFL_detalle_flete_id_cabecera_flete_CFL_cabecera_flete]
-FOREIGN KEY ([id_cabecera_flete]) REFERENCES [cfl].[CFL_cabecera_flete] ([id_cabecera_flete])
+-- CabeceraFlete → Folio
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_Folio]
+FOREIGN KEY ([IdFolio]) REFERENCES [cfl].[Folio] ([IdFolio])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_detalle_flete]
-ADD CONSTRAINT [FK_CFL_detalle_flete_id_especie_CFL_especie]
-FOREIGN KEY ([id_especie]) REFERENCES [cfl].[CFL_especie] ([id_especie])
+-- CabeceraFlete → TipoFlete
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_TipoFlete]
+FOREIGN KEY ([IdTipoFlete]) REFERENCES [cfl].[TipoFlete] ([IdTipoFlete])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_flete_estado_historial]
-ADD CONSTRAINT [FK_CFL_flete_estado_historial_id_cabecera_flete_CFL_cabecera_flete]
-FOREIGN KEY ([id_cabecera_flete]) REFERENCES [cfl].[CFL_cabecera_flete] ([id_cabecera_flete])
+-- CabeceraFlete → DetalleViaje
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_DetalleViaje]
+FOREIGN KEY ([IdDetalleViaje]) REFERENCES [cfl].[DetalleViaje] ([IdDetalleViaje])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_flete_estado_historial]
-ADD CONSTRAINT [FK_CFL_flete_estado_historial_id_usuario_CFL_usuario]
-FOREIGN KEY ([id_usuario]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+-- CabeceraFlete → Movil
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_Movil]
+FOREIGN KEY ([IdMovil]) REFERENCES [cfl].[Movil] ([IdMovil])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_cabecera_factura]
-ADD CONSTRAINT [FK_CFL_cabecera_factura_id_folio_CFL_folio]
-FOREIGN KEY ([id_folio]) REFERENCES [cfl].[CFL_folio] ([id_folio])
+-- CabeceraFlete → Tarifa
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_Tarifa]
+FOREIGN KEY ([IdTarifa]) REFERENCES [cfl].[Tarifa] ([IdTarifa])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_cabecera_factura]
-ADD CONSTRAINT [FK_CFL_cabecera_factura_id_empresa_CFL_empresa_transporte]
-FOREIGN KEY ([id_empresa]) REFERENCES [cfl].[CFL_empresa_transporte] ([id_empresa])
+-- CabeceraFlete → Usuario (creador)
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_UsuarioCreador]
+FOREIGN KEY ([IdUsuarioCreador]) REFERENCES [cfl].[Usuario] ([IdUsuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_detalle_factura]
-ADD CONSTRAINT [FK_CFL_detalle_factura_id_factura_CFL_cabecera_factura]
-FOREIGN KEY ([id_factura]) REFERENCES [cfl].[CFL_cabecera_factura] ([id_factura])
+-- CabeceraFlete → CentroCosto
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_CentroCosto]
+FOREIGN KEY ([IdCentroCosto]) REFERENCES [cfl].[CentroCosto] ([IdCentroCosto])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_conciliacion_factura_flete]
-ADD CONSTRAINT [FK_CFL_conciliacion_factura_flete_id_factura_CFL_cabecera_factura]
-FOREIGN KEY ([id_factura]) REFERENCES [cfl].[CFL_cabecera_factura] ([id_factura])
+-- CabeceraFlete → Productor
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_Productor]
+FOREIGN KEY ([IdProductor]) REFERENCES [cfl].[Productor] ([IdProductor])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_conciliacion_factura_flete]
-ADD CONSTRAINT [FK_CFL_conciliacion_factura_flete_id_cabecera_flete_CFL_cabecera_flete]
-FOREIGN KEY ([id_cabecera_flete]) REFERENCES [cfl].[CFL_cabecera_flete] ([id_cabecera_flete])
+-- CabeceraFlete → CuentaMayor
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_CuentaMayor]
+FOREIGN KEY ([IdCuentaMayor]) REFERENCES [cfl].[CuentaMayor] ([IdCuentaMayor])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_flete_sap_entrega]
-ADD CONSTRAINT [FK_CFL_flete_sap_entrega_id_cabecera_flete_CFL_cabecera_flete]
-FOREIGN KEY ([id_cabecera_flete]) REFERENCES [cfl].[CFL_cabecera_flete] ([id_cabecera_flete])
+-- CabeceraFlete → CabeceraFactura
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_CabeceraFactura]
+FOREIGN KEY ([IdFactura]) REFERENCES [cfl].[CabeceraFactura] ([IdFactura])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_flete_sap_entrega]
-ADD CONSTRAINT [FK_CFL_flete_sap_entrega_id_sap_entrega_CFL_sap_entrega]
-FOREIGN KEY ([id_sap_entrega]) REFERENCES [cfl].[CFL_sap_entrega] ([id_sap_entrega])
+-- DetalleFlete → CabeceraFlete
+ALTER TABLE [cfl].[DetalleFlete]
+ADD CONSTRAINT [FK_DetalleFlete_CabeceraFlete]
+FOREIGN KEY ([IdCabeceraFlete]) REFERENCES [cfl].[CabeceraFlete] ([IdCabeceraFlete])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_usuario_rol]
-ADD CONSTRAINT [FK_CFL_usuario_rol_id_usuario_CFL_usuario]
-FOREIGN KEY ([id_usuario]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+-- DetalleFlete → Especie
+ALTER TABLE [cfl].[DetalleFlete]
+ADD CONSTRAINT [FK_DetalleFlete_Especie]
+FOREIGN KEY ([IdEspecie]) REFERENCES [cfl].[Especie] ([IdEspecie])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_usuario_rol]
-ADD CONSTRAINT [FK_CFL_usuario_rol_id_rol_CFL_rol]
-FOREIGN KEY ([id_rol]) REFERENCES [cfl].[CFL_rol] ([id_rol])
+-- FleteEstadoHistorial → CabeceraFlete
+ALTER TABLE [cfl].[FleteEstadoHistorial]
+ADD CONSTRAINT [FK_FleteEstadoHistorial_CabeceraFlete]
+FOREIGN KEY ([IdCabeceraFlete]) REFERENCES [cfl].[CabeceraFlete] ([IdCabeceraFlete])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_rol_permiso]
-ADD CONSTRAINT [FK_CFL_rol_permiso_id_rol_CFL_rol]
-FOREIGN KEY ([id_rol]) REFERENCES [cfl].[CFL_rol] ([id_rol])
+-- FleteEstadoHistorial → Usuario
+ALTER TABLE [cfl].[FleteEstadoHistorial]
+ADD CONSTRAINT [FK_FleteEstadoHistorial_Usuario]
+FOREIGN KEY ([IdUsuario]) REFERENCES [cfl].[Usuario] ([IdUsuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_rol_permiso]
-ADD CONSTRAINT [FK_CFL_rol_permiso_id_permiso_CFL_permiso]
-FOREIGN KEY ([id_permiso]) REFERENCES [cfl].[CFL_permiso] ([id_permiso])
+-- CabeceraFactura → Folio (nullable: bridge FacturaFolio cubre n:m)
+ALTER TABLE [cfl].[CabeceraFactura]
+ADD CONSTRAINT [FK_CabeceraFactura_Folio]
+FOREIGN KEY ([IdFolio]) REFERENCES [cfl].[Folio] ([IdFolio])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_auditoria]
-ADD CONSTRAINT [FK_CFL_auditoria_id_usuario_CFL_usuario]
-FOREIGN KEY ([id_usuario]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+-- CabeceraFactura → EmpresaTransporte
+ALTER TABLE [cfl].[CabeceraFactura]
+ADD CONSTRAINT [FK_CabeceraFactura_EmpresaTransporte]
+FOREIGN KEY ([IdEmpresa]) REFERENCES [cfl].[EmpresaTransporte] ([IdEmpresa])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_temporada]
-ADD CONSTRAINT [FK_CFL_temporada_id_usuario_cierre_CFL_usuario]
-FOREIGN KEY ([id_usuario_cierre]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+-- FacturaFolio → CabeceraFactura
+ALTER TABLE [cfl].[FacturaFolio]
+ADD CONSTRAINT [FK_FacturaFolio_CabeceraFactura]
+FOREIGN KEY ([IdFactura]) REFERENCES [cfl].[CabeceraFactura] ([IdFactura])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_folio]
-ADD CONSTRAINT [FK_CFL_folio_id_usuario_cierre_CFL_usuario]
-FOREIGN KEY ([id_usuario_cierre]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+-- FacturaFolio → Folio
+ALTER TABLE [cfl].[FacturaFolio]
+ADD CONSTRAINT [FK_FacturaFolio_Folio]
+FOREIGN KEY ([IdFolio]) REFERENCES [cfl].[Folio] ([IdFolio])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_cabecera_flete]
-ADD CONSTRAINT [FK_CFL_cabecera_flete_id_usuario_creador_CFL_usuario]
-FOREIGN KEY ([id_usuario_creador]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+-- DetalleFactura → CabeceraFactura
+ALTER TABLE [cfl].[DetalleFactura]
+ADD CONSTRAINT [FK_DetalleFactura_CabeceraFactura]
+FOREIGN KEY ([IdFactura]) REFERENCES [cfl].[CabeceraFactura] ([IdFactura])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_cabecera_flete]
-ADD CONSTRAINT [FK_CFL_cabecera_flete_id_centro_costo_CFL_centro_costo]
-FOREIGN KEY ([id_centro_costo]) REFERENCES [cfl].[CFL_centro_costo] ([id_centro_costo])
+-- ConciliacionFacturaFlete → CabeceraFactura
+ALTER TABLE [cfl].[ConciliacionFacturaFlete]
+ADD CONSTRAINT [FK_ConciliacionFacturaFlete_CabeceraFactura]
+FOREIGN KEY ([IdFactura]) REFERENCES [cfl].[CabeceraFactura] ([IdFactura])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-
-ALTER TABLE [cfl].[CFL_cabecera_flete]
-ADD CONSTRAINT [FK_CFL_cabecera_flete_id_cuenta_mayor_CFL_cuenta_mayor]
-FOREIGN KEY ([id_cuenta_mayor]) REFERENCES [cfl].[CFL_cuenta_mayor] ([id_cuenta_mayor])
+-- ConciliacionFacturaFlete → CabeceraFlete
+ALTER TABLE [cfl].[ConciliacionFacturaFlete]
+ADD CONSTRAINT [FK_ConciliacionFacturaFlete_CabeceraFlete]
+FOREIGN KEY ([IdCabeceraFlete]) REFERENCES [cfl].[CabeceraFlete] ([IdCabeceraFlete])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_flete_sap_entrega]
-ADD CONSTRAINT [FK_CFL_flete_sap_entrega_created_by_CFL_usuario]
-FOREIGN KEY ([created_by]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-ALTER TABLE [cfl].[CFL_sap_entrega_descarte]
-ADD CONSTRAINT [FK_CFL_sap_entrega_descarte_id_sap_entrega_CFL_sap_entrega]
-FOREIGN KEY ([id_sap_entrega]) REFERENCES [cfl].[CFL_sap_entrega] ([id_sap_entrega])
+-- FleteSapEntrega → CabeceraFlete
+ALTER TABLE [cfl].[FleteSapEntrega]
+ADD CONSTRAINT [FK_FleteSapEntrega_CabeceraFlete]
+FOREIGN KEY ([IdCabeceraFlete]) REFERENCES [cfl].[CabeceraFlete] ([IdCabeceraFlete])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_sap_entrega_descarte]
-ADD CONSTRAINT [FK_CFL_sap_entrega_descarte_created_by_CFL_usuario]
-FOREIGN KEY ([created_by]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+-- FleteSapEntrega → SapEntrega
+ALTER TABLE [cfl].[FleteSapEntrega]
+ADD CONSTRAINT [FK_FleteSapEntrega_SapEntrega]
+FOREIGN KEY ([IdSapEntrega]) REFERENCES [cfl].[SapEntrega] ([IdSapEntrega])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-ALTER TABLE [cfl].[CFL_sap_entrega_descarte]
-ADD CONSTRAINT [FK_CFL_sap_entrega_descarte_restored_by_CFL_usuario]
-FOREIGN KEY ([restored_by]) REFERENCES [cfl].[CFL_usuario] ([id_usuario])
+-- FleteSapEntrega → Usuario (creador)
+ALTER TABLE [cfl].[FleteSapEntrega]
+ADD CONSTRAINT [FK_FleteSapEntrega_UsuarioCreadoPor]
+FOREIGN KEY ([CreadoPor]) REFERENCES [cfl].[Usuario] ([IdUsuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-/* =========================
-   LÃNEA A: DEDUPE RAW (BK + hash) - UNIQUE
-   UNIQUE (source_system, BK..., row_hash)
-========================= */
-CREATE UNIQUE INDEX [UX_likp_bk_hash]
-ON [cfl].[CFL_sap_likp_raw] ([source_system], [sap_numero_entrega], [row_hash]);
+-- UsuarioRol → Usuario
+ALTER TABLE [cfl].[UsuarioRol]
+ADD CONSTRAINT [FK_UsuarioRol_Usuario]
+FOREIGN KEY ([IdUsuario]) REFERENCES [cfl].[Usuario] ([IdUsuario])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-CREATE UNIQUE INDEX [UX_lips_bk_hash]
-ON [cfl].[CFL_sap_lips_raw] ([source_system], [sap_numero_entrega], [sap_posicion], [row_hash]);
+-- UsuarioRol → Rol
+ALTER TABLE [cfl].[UsuarioRol]
+ADD CONSTRAINT [FK_UsuarioRol_Rol]
+FOREIGN KEY ([IdRol]) REFERENCES [cfl].[Rol] ([IdRol])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
-/* =========================
-   VISTAS CURRENT (Última versión por BK)
-========================= */
+-- RolPermiso → Rol
+ALTER TABLE [cfl].[RolPermiso]
+ADD CONSTRAINT [FK_RolPermiso_Rol]
+FOREIGN KEY ([IdRol]) REFERENCES [cfl].[Rol] ([IdRol])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
 
-/* =============================================================================
-   CFL - Vistas CURRENT + AS_OF (LIKP + LIPS)
-   - CURRENT: Última versión por BK usando row_status='ACTIVE'
-   - AS_OF: reconstrucción histórica por extracted_at <= @as_of_utc (NO usa row_status)
-============================================================================= */
+-- RolPermiso → Permiso
+ALTER TABLE [cfl].[RolPermiso]
+ADD CONSTRAINT [FK_RolPermiso_Permiso]
+FOREIGN KEY ([IdPermiso]) REFERENCES [cfl].[Permiso] ([IdPermiso])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
 
--- =========================================================
--- LIKP CURRENT
--- BK: (source_system, sap_numero_entrega)
--- =========================================================
+-- Auditoria → Usuario
+ALTER TABLE [cfl].[Auditoria]
+ADD CONSTRAINT [FK_Auditoria_Usuario]
+FOREIGN KEY ([IdUsuario]) REFERENCES [cfl].[Usuario] ([IdUsuario])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
 
-CREATE OR ALTER VIEW [cfl].[vw_cfl_sap_likp_current]
+/* ============================================================
+   VISTA: cfl.VW_LikpActual  (ex vw_cfl_sap_likp_current)
+   Última versión activa por BK (SistemaFuente, SapNumeroEntrega)
+============================================================ */
+CREATE OR ALTER VIEW [cfl].[VW_LikpActual]
 AS
 WITH ranked AS
 (
@@ -1048,57 +1210,58 @@ WITH ranked AS
         r.*,
         rn = ROW_NUMBER() OVER
         (
-            PARTITION BY r.[source_system], r.[sap_numero_entrega]
-            ORDER BY r.[extracted_at] DESC, r.[raw_id] DESC
+            PARTITION BY r.[SistemaFuente], r.[SapNumeroEntrega]
+            ORDER BY r.[FechaExtraccion] DESC, r.[IdSapLikpRaw] DESC
         )
-    FROM [cfl].[CFL_sap_likp_raw] r
-    WHERE r.[row_status] = 'ACTIVE'
+    FROM [cfl].[SapLikpRaw] r
+    WHERE r.[EstadoFila] = 'ACTIVE'
 )
 SELECT
-    sap_numero_entrega,
-    raw_id,
-    extracted_at,
-    row_hash,
-    row_status,
-    execution_id,
-    source_system,
-    created_at,
+    SapNumeroEntrega,
+    IdSapLikpRaw,
+    FechaExtraccion,
+    HashFila,
+    EstadoFila,
+    IdEjecucion,
+    SistemaFuente,
+    FechaCreacion,
 
-    sap_referencia,
-    sap_puesto_expedicion,
-    sap_organizacion_ventas,
-    sap_creado_por,
-    sap_fecha_creacion,
-    sap_clase_entrega,
-    sap_tipo_entrega,
+    SapReferencia,
+    SapPuestoExpedicion,
+    SapDestinatario,
+    SapOrganizacionVentas,
+    SapCreadoPor,
+    SapFechaCreacion,
+    SapClaseEntrega,
+    SapTipoEntrega,
 
-    sap_fecha_carga,
-    sap_hora_carga,
-    sap_guia_remision,
-    sap_nombre_chofer,
-    sap_id_fiscal_chofer,
-    sap_empresa_transporte,
-    sap_patente,
-    sap_carro,
-    sap_fecha_salida,
-    sap_hora_salida,
-    sap_codigo_tipo_flete,
+    SapFechaCarga,
+    SapHoraCarga,
+    SapGuiaRemision,
+    SapNombreChofer,
+    SapIdFiscalChofer,
+    SapEmpresaTransporte,
+    SapPatente,
+    SapCarro,
+    SapFechaSalida,
+    SapHoraSalida,
+    SapCodigoTipoFlete,
 
-    sap_centro_costo,
-    sap_cuenta_mayor,
+    SapCentroCosto,
+    SapCuentaMayor,
 
-    sap_peso_total,
-    sap_peso_neto,
-    sap_fecha_entrega_real
+    SapPesoTotal,
+    SapPesoNeto,
+    SapFechaEntregaReal
 FROM ranked
 WHERE rn = 1;
 GO
 
--- =========================================================
--- LIPS CURRENT
--- BK: (source_system, sap_numero_entrega, sap_posicion)
--- =========================================================
-CREATE OR ALTER VIEW [cfl].[vw_cfl_sap_lips_current]
+/* ============================================================
+   VISTA: cfl.VW_LipsActual  (ex vw_cfl_sap_lips_current)
+   Última versión activa por BK + resolución de posiciones hijo/padre
+============================================================ */
+CREATE OR ALTER VIEW [cfl].[VW_LipsActual]
 AS
 WITH ranked AS
 (
@@ -1106,53 +1269,49 @@ WITH ranked AS
         r.*,
         rn = ROW_NUMBER() OVER
         (
-            PARTITION BY r.[source_system], r.[sap_numero_entrega], r.[sap_posicion]
+            PARTITION BY r.[SistemaFuente], r.[SapNumeroEntrega], r.[SapPosicion]
             ORDER BY
-                CASE WHEN NULLIF(LTRIM(RTRIM(r.[sap_posicion_superior])), '') IS NOT NULL THEN 0 ELSE 1 END,
-                r.[extracted_at] DESC,
-                r.[raw_id] DESC
+                CASE WHEN NULLIF(LTRIM(RTRIM(r.[SapPosicionSuperior])), '') IS NOT NULL THEN 0 ELSE 1 END,
+                r.[FechaExtraccion] DESC,
+                r.[IdSapLipsRaw] DESC
         )
-    FROM [cfl].[CFL_sap_lips_raw] r
-    WHERE r.[row_status] = 'ACTIVE'
+    FROM [cfl].[SapLipsRaw] r
+    WHERE r.[EstadoFila] = 'ACTIVE'
 ),
 src AS
 (
     SELECT
-        sap_numero_entrega,
-        sap_posicion = RIGHT(CONCAT('000000', LTRIM(RTRIM(sap_posicion))), 6),
-        sap_posicion_superior =
+        SapNumeroEntrega,
+        SapPosicion = RIGHT(CONCAT('000000', LTRIM(RTRIM(SapPosicion))), 6),
+        SapPosicionSuperior =
             CASE
-                WHEN NULLIF(LTRIM(RTRIM(sap_posicion_superior)), '') IS NULL THEN NULL
-                ELSE RIGHT(CONCAT('000000', LTRIM(RTRIM(sap_posicion_superior))), 6)
+                WHEN NULLIF(LTRIM(RTRIM(SapPosicionSuperior)), '') IS NULL THEN NULL
+                ELSE RIGHT(CONCAT('000000', LTRIM(RTRIM(SapPosicionSuperior))), 6)
             END,
-        sap_lote,
-        raw_id,
-        extracted_at,
-        row_hash,
-        row_status,
-        execution_id,
-        source_system,
-        created_at,
-        sap_material,
-        sap_cantidad_entregada,
-        sap_unidad_peso,
-        sap_denominacion_material,
-        sap_centro,
-        sap_almacen
+        SapLote,
+        IdSapLipsRaw,
+        FechaExtraccion,
+        HashFila,
+        EstadoFila,
+        IdEjecucion,
+        SistemaFuente,
+        FechaCreacion,
+        SapMaterial,
+        SapCantidadEntregada,
+        SapUnidadPeso,
+        SapDenominacionMaterial,
+        SapCentro,
+        SapAlmacen
     FROM ranked
     WHERE rn = 1
 ),
 base AS
 (
-    SELECT *
-    FROM src
-    WHERE sap_posicion_superior IS NULL
+    SELECT * FROM src WHERE SapPosicionSuperior IS NULL
 ),
 hijos AS
 (
-    SELECT *
-    FROM src
-    WHERE sap_posicion_superior IS NOT NULL
+    SELECT * FROM src WHERE SapPosicionSuperior IS NOT NULL
 ),
 base_flag AS
 (
@@ -1162,132 +1321,130 @@ base_flag AS
             CASE WHEN EXISTS (
                 SELECT 1
                 FROM hijos h
-                WHERE h.source_system = b.source_system
-                  AND h.sap_numero_entrega = b.sap_numero_entrega
-                  AND h.sap_posicion_superior = b.sap_posicion
+                WHERE h.SistemaFuente = b.SistemaFuente
+                  AND h.SapNumeroEntrega = b.SapNumeroEntrega
+                  AND h.SapPosicionSuperior = b.SapPosicion
             ) THEN 1 ELSE 0 END
     FROM base b
 ),
 out_hijos AS
 (
     SELECT
-        sap_numero_entrega = h.sap_numero_entrega,
-        sap_posicion = h.sap_posicion,
-        sap_posicion_superior = h.sap_posicion_superior,
-        sap_lote = h.sap_lote,
-        raw_id = h.raw_id,
-        extracted_at = h.extracted_at,
-        row_hash = h.row_hash,
-        row_status = h.row_status,
-        execution_id = h.execution_id,
-        source_system = h.source_system,
-        created_at = h.created_at,
-        sap_material = COALESCE(NULLIF(LTRIM(RTRIM(h.sap_material)), ''), b.sap_material),
-        sap_cantidad_entregada = h.sap_cantidad_entregada,
-        sap_unidad_peso = h.sap_unidad_peso,
-        sap_denominacion_material = h.sap_denominacion_material,
-        sap_centro = h.sap_centro,
-        sap_almacen = h.sap_almacen,
-        sap_posicion_raiz = h.sap_posicion_superior,
-        sap_posicion_efectiva = h.sap_posicion,
-        raw_id_base = b.raw_id,
-        extracted_at_base = b.extracted_at,
-        execution_id_base = b.execution_id
+        SapNumeroEntrega      = h.SapNumeroEntrega,
+        SapPosicion           = h.SapPosicion,
+        SapPosicionSuperior   = h.SapPosicionSuperior,
+        SapLote               = h.SapLote,
+        IdSapLipsRaw          = h.IdSapLipsRaw,
+        FechaExtraccion       = h.FechaExtraccion,
+        HashFila              = h.HashFila,
+        EstadoFila            = h.EstadoFila,
+        IdEjecucion           = h.IdEjecucion,
+        SistemaFuente         = h.SistemaFuente,
+        FechaCreacion         = h.FechaCreacion,
+        SapMaterial           = COALESCE(NULLIF(LTRIM(RTRIM(h.SapMaterial)), ''), b.SapMaterial),
+        SapCantidadEntregada  = h.SapCantidadEntregada,
+        SapUnidadPeso         = h.SapUnidadPeso,
+        SapDenominacionMaterial = h.SapDenominacionMaterial,
+        SapCentro             = h.SapCentro,
+        SapAlmacen            = h.SapAlmacen,
+        SapPosicionRaiz       = h.SapPosicionSuperior,
+        SapPosicionEfectiva   = h.SapPosicion,
+        IdSapLipsRawBase      = b.IdSapLipsRaw,
+        FechaExtraccionBase   = b.FechaExtraccion,
+        IdEjecucionBase       = b.IdEjecucion
     FROM hijos h
     LEFT JOIN base b
-      ON b.source_system = h.source_system
-     AND b.sap_numero_entrega = h.sap_numero_entrega
-     AND b.sap_posicion = h.sap_posicion_superior
+      ON b.SistemaFuente = h.SistemaFuente
+     AND b.SapNumeroEntrega = h.SapNumeroEntrega
+     AND b.SapPosicion = h.SapPosicionSuperior
 ),
 out_base_sin_hijos AS
 (
     SELECT
-        sap_numero_entrega = b.sap_numero_entrega,
-        sap_posicion = b.sap_posicion,
-        sap_posicion_superior = CAST(NULL AS CHAR(6)),
-        sap_lote = b.sap_lote,
-        raw_id = b.raw_id,
-        extracted_at = b.extracted_at,
-        row_hash = b.row_hash,
-        row_status = b.row_status,
-        execution_id = b.execution_id,
-        source_system = b.source_system,
-        created_at = b.created_at,
-        sap_material = b.sap_material,
-        sap_cantidad_entregada = b.sap_cantidad_entregada,
-        sap_unidad_peso = b.sap_unidad_peso,
-        sap_denominacion_material = b.sap_denominacion_material,
-        sap_centro = b.sap_centro,
-        sap_almacen = b.sap_almacen,
-        sap_posicion_raiz = b.sap_posicion,
-        sap_posicion_efectiva = b.sap_posicion,
-        raw_id_base = b.raw_id,
-        extracted_at_base = b.extracted_at,
-        execution_id_base = b.execution_id
+        SapNumeroEntrega      = b.SapNumeroEntrega,
+        SapPosicion           = b.SapPosicion,
+        SapPosicionSuperior   = CAST(NULL AS CHAR(6)),
+        SapLote               = b.SapLote,
+        IdSapLipsRaw          = b.IdSapLipsRaw,
+        FechaExtraccion       = b.FechaExtraccion,
+        HashFila              = b.HashFila,
+        EstadoFila            = b.EstadoFila,
+        IdEjecucion           = b.IdEjecucion,
+        SistemaFuente         = b.SistemaFuente,
+        FechaCreacion         = b.FechaCreacion,
+        SapMaterial           = b.SapMaterial,
+        SapCantidadEntregada  = b.SapCantidadEntregada,
+        SapUnidadPeso         = b.SapUnidadPeso,
+        SapDenominacionMaterial = b.SapDenominacionMaterial,
+        SapCentro             = b.SapCentro,
+        SapAlmacen            = b.SapAlmacen,
+        SapPosicionRaiz       = b.SapPosicion,
+        SapPosicionEfectiva   = b.SapPosicion,
+        IdSapLipsRawBase      = b.IdSapLipsRaw,
+        FechaExtraccionBase   = b.FechaExtraccion,
+        IdEjecucionBase       = b.IdEjecucion
     FROM base_flag b
     WHERE b.has_children = 0
-      AND b.sap_cantidad_entregada > 0
+      AND b.SapCantidadEntregada > 0
 )
 SELECT
-    sap_numero_entrega,
-    sap_posicion,
-    sap_posicion_superior,
-    sap_lote,
-
-    raw_id,
-    extracted_at,
-    row_hash,
-    row_status,
-    execution_id,
-    source_system,
-    created_at,
-
-    sap_material,
-    sap_cantidad_entregada,
-    sap_unidad_peso,
-    sap_denominacion_material,
-    sap_centro,
-    sap_almacen,
-    sap_posicion_raiz,
-    sap_posicion_efectiva,
-    raw_id_base,
-    extracted_at_base,
-    execution_id_base
+    SapNumeroEntrega,
+    SapPosicion,
+    SapPosicionSuperior,
+    SapLote,
+    IdSapLipsRaw,
+    FechaExtraccion,
+    HashFila,
+    EstadoFila,
+    IdEjecucion,
+    SistemaFuente,
+    FechaCreacion,
+    SapMaterial,
+    SapCantidadEntregada,
+    SapUnidadPeso,
+    SapDenominacionMaterial,
+    SapCentro,
+    SapAlmacen,
+    SapPosicionRaiz,
+    SapPosicionEfectiva,
+    IdSapLipsRawBase,
+    FechaExtraccionBase,
+    IdEjecucionBase
 FROM out_hijos
 UNION ALL
 SELECT
-    sap_numero_entrega,
-    sap_posicion,
-    sap_posicion_superior,
-    sap_lote,
-    raw_id,
-    extracted_at,
-    row_hash,
-    row_status,
-    execution_id,
-    source_system,
-    created_at,
-    sap_material,
-    sap_cantidad_entregada,
-    sap_unidad_peso,
-    sap_denominacion_material,
-    sap_centro,
-    sap_almacen,
-    sap_posicion_raiz,
-    sap_posicion_efectiva,
-    raw_id_base,
-    extracted_at_base,
-    execution_id_base
+    SapNumeroEntrega,
+    SapPosicion,
+    SapPosicionSuperior,
+    SapLote,
+    IdSapLipsRaw,
+    FechaExtraccion,
+    HashFila,
+    EstadoFila,
+    IdEjecucion,
+    SistemaFuente,
+    FechaCreacion,
+    SapMaterial,
+    SapCantidadEntregada,
+    SapUnidadPeso,
+    SapDenominacionMaterial,
+    SapCentro,
+    SapAlmacen,
+    SapPosicionRaiz,
+    SapPosicionEfectiva,
+    IdSapLipsRawBase,
+    FechaExtraccionBase,
+    IdEjecucionBase
 FROM out_base_sin_hijos;
 GO
 
--- =========================================================
--- LIKP AS_OF (parametrizado)
--- Reconstruye "vigente a fecha" por extracted_at <= @as_of_utc
--- =========================================================
-CREATE OR ALTER FUNCTION [cfl].[fn_cfl_sap_likp_as_of]
+/* ============================================================
+   FUNCIÓN: cfl.Fn_LikpAPartirDe  (ex fn_cfl_sap_likp_as_of)
+   Reconstruye "vigente a fecha" por FechaExtraccion <= @como_de_utc
+============================================================ */
+CREATE OR ALTER FUNCTION [cfl].[Fn_LikpAPartirDe]
 (
-    @as_of_utc DATETIME2(0)
+    @como_de_utc DATETIME2(0)
 )
 RETURNS TABLE
 AS
@@ -1298,59 +1455,60 @@ WITH ranked AS
         r.*,
         rn = ROW_NUMBER() OVER
         (
-            PARTITION BY r.[source_system], r.[sap_numero_entrega]
-            ORDER BY r.[extracted_at] DESC, r.[raw_id] DESC
+            PARTITION BY r.[SistemaFuente], r.[SapNumeroEntrega]
+            ORDER BY r.[FechaExtraccion] DESC, r.[IdSapLikpRaw] DESC
         )
-    FROM [cfl].[CFL_sap_likp_raw] r
-    WHERE r.[extracted_at] <= @as_of_utc
+    FROM [cfl].[SapLikpRaw] r
+    WHERE r.[FechaExtraccion] <= @como_de_utc
 )
 SELECT
-    sap_numero_entrega,
-    raw_id,
-    extracted_at,
-    row_hash,
-    row_status,
-    execution_id,
-    source_system,
-    created_at,
+    SapNumeroEntrega,
+    IdSapLikpRaw,
+    FechaExtraccion,
+    HashFila,
+    EstadoFila,
+    IdEjecucion,
+    SistemaFuente,
+    FechaCreacion,
 
-    sap_referencia,
-    sap_puesto_expedicion,
-    sap_organizacion_ventas,
-    sap_creado_por,
-    sap_fecha_creacion,
-    sap_clase_entrega,
-    sap_tipo_entrega,
+    SapReferencia,
+    SapPuestoExpedicion,
+    SapDestinatario,
+    SapOrganizacionVentas,
+    SapCreadoPor,
+    SapFechaCreacion,
+    SapClaseEntrega,
+    SapTipoEntrega,
 
-    sap_fecha_carga,
-    sap_hora_carga,
-    sap_guia_remision,
-    sap_nombre_chofer,
-    sap_id_fiscal_chofer,
-    sap_empresa_transporte,
-    sap_patente,
-    sap_carro,
-    sap_fecha_salida,
-    sap_hora_salida,
-    sap_codigo_tipo_flete,
+    SapFechaCarga,
+    SapHoraCarga,
+    SapGuiaRemision,
+    SapNombreChofer,
+    SapIdFiscalChofer,
+    SapEmpresaTransporte,
+    SapPatente,
+    SapCarro,
+    SapFechaSalida,
+    SapHoraSalida,
+    SapCodigoTipoFlete,
 
-    sap_centro_costo,
-    sap_cuenta_mayor,
+    SapCentroCosto,
+    SapCuentaMayor,
 
-    sap_peso_total,
-    sap_peso_neto,
-    sap_fecha_entrega_real
+    SapPesoTotal,
+    SapPesoNeto,
+    SapFechaEntregaReal
 FROM ranked
 WHERE rn = 1;
 GO
 
--- =========================================================
--- LIPS AS_OF (parametrizado)
--- Reconstruye "vigente a fecha" por extracted_at <= @as_of_utc
--- =========================================================
-CREATE OR ALTER FUNCTION [cfl].[fn_cfl_sap_lips_as_of]
+/* ============================================================
+   FUNCIÓN: cfl.Fn_LipsAPartirDe  (ex fn_cfl_sap_lips_as_of)
+   Reconstruye "vigente a fecha" por FechaExtraccion <= @como_de_utc
+============================================================ */
+CREATE OR ALTER FUNCTION [cfl].[Fn_LipsAPartirDe]
 (
-    @as_of_utc DATETIME2(0)
+    @como_de_utc DATETIME2(0)
 )
 RETURNS TABLE
 AS
@@ -1361,33 +1519,30 @@ WITH ranked AS
         r.*,
         rn = ROW_NUMBER() OVER
         (
-            PARTITION BY r.[source_system], r.[sap_numero_entrega], r.[sap_posicion]
-            ORDER BY r.[extracted_at] DESC, r.[raw_id] DESC
+            PARTITION BY r.[SistemaFuente], r.[SapNumeroEntrega], r.[SapPosicion]
+            ORDER BY r.[FechaExtraccion] DESC, r.[IdSapLipsRaw] DESC
         )
-    FROM [cfl].[CFL_sap_lips_raw] r
-    WHERE r.[extracted_at] <= @as_of_utc
+    FROM [cfl].[SapLipsRaw] r
+    WHERE r.[FechaExtraccion] <= @como_de_utc
 )
 SELECT
-    sap_numero_entrega,
-    sap_posicion,
-    sap_posicion_superior,
-    sap_lote,
-
-    raw_id,
-    extracted_at,
-    row_hash,
-    row_status,
-    execution_id,
-    source_system,
-    created_at,
-
-    sap_material,
-    sap_cantidad_entregada,
-    sap_unidad_peso,
-    sap_denominacion_material,
-    sap_centro,
-    sap_almacen
+    SapNumeroEntrega,
+    SapPosicion,
+    SapPosicionSuperior,
+    SapLote,
+    IdSapLipsRaw,
+    FechaExtraccion,
+    HashFila,
+    EstadoFila,
+    IdEjecucion,
+    SistemaFuente,
+    FechaCreacion,
+    SapMaterial,
+    SapCantidadEntregada,
+    SapUnidadPeso,
+    SapDenominacionMaterial,
+    SapCentro,
+    SapAlmacen
 FROM ranked
 WHERE rn = 1;
 GO
-

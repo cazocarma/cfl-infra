@@ -104,37 +104,37 @@ VALUES
 ('651', N'TRANSPORTES PATRICIO', N'TRANSP PATRICIO GUTI'),
 ('652', N'SOC TRANSP COMERC MU', N'SOC TRANSP COMERC MU');
 
-/* 1) Actualiza empresas que ya existen por sap_codigo */
+/* 1) Actualiza empresas que ya existen por SapCodigo */
 UPDATE t
 SET
-  t.razon_social = s.etr_denomin,
-  t.nombre_rep = s.etr_nombre,
+  t.RazonSocial = s.etr_denomin,
+  t.NombreRepresentante = s.etr_nombre,
   t.activo = 1,
-  t.updated_at = @now
-FROM cfl.CFL_empresa_transporte t
-INNER JOIN #etr_src s ON t.sap_codigo = s.etr_cod;
+  t.FechaActualizacion = @now
+FROM cfl.EmpresaTransporte t
+INNER JOIN #etr_src s ON t.SapCodigo = s.etr_cod;
 
-/* 2) Si existe por nombre y aun no tiene sap_codigo, lo asigna */
+/* 2) Si existe por nombre y aun no tiene SapCodigo, lo asigna */
 UPDATE t
 SET
-  t.sap_codigo = s.etr_cod,
-  t.razon_social = s.etr_denomin,
-  t.nombre_rep = s.etr_nombre,
+  t.SapCodigo = s.etr_cod,
+  t.RazonSocial = s.etr_denomin,
+  t.NombreRepresentante = s.etr_nombre,
   t.activo = 1,
-  t.updated_at = @now
-FROM cfl.CFL_empresa_transporte t
+  t.FechaActualizacion = @now
+FROM cfl.EmpresaTransporte t
 INNER JOIN #etr_src s
-  ON UPPER(LTRIM(RTRIM(ISNULL(t.razon_social, '')))) = UPPER(LTRIM(RTRIM(s.etr_denomin)))
-WHERE t.sap_codigo IS NULL
+  ON UPPER(LTRIM(RTRIM(ISNULL(t.RazonSocial, '')))) = UPPER(LTRIM(RTRIM(s.etr_denomin)))
+WHERE t.SapCodigo IS NULL
   AND NOT EXISTS (
     SELECT 1
-    FROM cfl.CFL_empresa_transporte x
-    WHERE x.sap_codigo = s.etr_cod
+    FROM cfl.EmpresaTransporte x
+    WHERE x.SapCodigo = s.etr_cod
   );
 
 /* 3) Inserta solo las que no existen por codigo ni por nombre */
-INSERT INTO cfl.CFL_empresa_transporte
-  (sap_codigo, rut, razon_social, nombre_rep, correo, telefono, activo, created_at, updated_at)
+INSERT INTO cfl.EmpresaTransporte
+  (SapCodigo, rut, RazonSocial, NombreRepresentante, correo, telefono, activo, FechaCreacion, FechaActualizacion)
 SELECT
   s.etr_cod,
   CONCAT('SAP-ETR-', s.etr_cod),
@@ -148,13 +148,13 @@ SELECT
 FROM #etr_src s
 WHERE NOT EXISTS (
   SELECT 1
-  FROM cfl.CFL_empresa_transporte t
-  WHERE t.sap_codigo = s.etr_cod
+  FROM cfl.EmpresaTransporte t
+  WHERE t.SapCodigo = s.etr_cod
 )
 AND NOT EXISTS (
   SELECT 1
-  FROM cfl.CFL_empresa_transporte t
-  WHERE UPPER(LTRIM(RTRIM(ISNULL(t.razon_social, '')))) = UPPER(LTRIM(RTRIM(s.etr_denomin)))
+  FROM cfl.EmpresaTransporte t
+  WHERE UPPER(LTRIM(RTRIM(ISNULL(t.RazonSocial, '')))) = UPPER(LTRIM(RTRIM(s.etr_denomin)))
 );
 
 COMMIT TRANSACTION;

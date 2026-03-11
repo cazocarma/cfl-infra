@@ -150,7 +150,6 @@ DECLARE @now DATETIME2(0) = SYSDATETIME();
   (N'LOS MAITENES', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', 1),
   (N'LOS NICHES', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', 1),
   (N'LOS ROBLES', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', 1),
-  (N'M.GONZALES', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', 1),
   (N'MACHALI', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', 1),
   (N'Machalí', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', 1),
   (N'MAIPO', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', 1),
@@ -308,7 +307,7 @@ DECLARE @now DATETIME2(0) = SYSDATETIME();
   (N'YERBAS BUENAS.', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', N'POR DEFINIR', 1)
   ) v(nombre, region, comuna, ciudad, calle, activo)
 )
-MERGE cfl.CFL_nodo_logistico AS t
+MERGE cfl.NodoLogistico AS t
 USING src AS s
 ON t.nombre = s.nombre
 WHEN MATCHED THEN
@@ -322,7 +321,7 @@ WHEN NOT MATCHED THEN
   INSERT (nombre, region, comuna, ciudad, calle, activo)
   VALUES (s.nombre, s.region, s.comuna, s.ciudad, s.calle, CAST(s.activo AS BIT));
 
-;WITH src(origen_nombre, destino_nombre, nombre_ruta, distancia_km, activo) AS (
+;WITH src(origen_nombre, destino_nombre, NombreRuta, DistanciaKm, activo) AS (
   SELECT *
   FROM (VALUES
   (N'PLANTA MAIPO', N'CHILLAN', N'Planta Maipo -> Chillan', 380, 1),
@@ -520,31 +519,31 @@ WHEN NOT MATCHED THEN
   (N'TALAGANTE', N'YERBAS BUENAS', N'Talagante -> Yerbas Buenas', 285, 1),
   (N'Yerbas Buenas ( Flor Oriente )', N'CHIMBARONGO', N'Yerbas Buenas ( Flor Oriente ) -> Chimbarongo', 136, 1),
   (N'Yerbas Buenas ( Flor Oriente )', N'Requinoa ( Del Monte )', N'Yerbas Buenas ( Flor Oriente ) -> Requinoa ( Del Monte )', 201, 1)
-  ) v(origen_nombre, destino_nombre, nombre_ruta, distancia_km, activo)
+  ) v(origen_nombre, destino_nombre, NombreRuta, DistanciaKm, activo)
 ), resolved AS (
   SELECT
-    no.id_nodo AS id_origen_nodo,
-    nd.id_nodo AS id_destino_nodo,
-    s.nombre_ruta,
-    s.distancia_km,
+    no.IdNodo AS IdOrigenNodo,
+    nd.IdNodo AS IdDestinoNodo,
+    s.NombreRuta,
+    s.DistanciaKm,
     s.activo
   FROM src s
-  INNER JOIN cfl.CFL_nodo_logistico no ON no.nombre = s.origen_nombre
-  INNER JOIN cfl.CFL_nodo_logistico nd ON nd.nombre = s.destino_nombre
+  INNER JOIN cfl.NodoLogistico no ON no.nombre = s.origen_nombre
+  INNER JOIN cfl.NodoLogistico nd ON nd.nombre = s.destino_nombre
 )
-MERGE cfl.CFL_ruta AS t
+MERGE cfl.Ruta AS t
 USING resolved AS s
-ON t.id_origen_nodo = s.id_origen_nodo
-AND t.id_destino_nodo = s.id_destino_nodo
+ON t.IdOrigenNodo = s.IdOrigenNodo
+AND t.IdDestinoNodo = s.IdDestinoNodo
 WHEN MATCHED THEN
   UPDATE SET
-    t.nombre_ruta = s.nombre_ruta,
-    t.distancia_km = CAST(s.distancia_km AS DECIMAL(10,2)),
+    t.NombreRuta = s.NombreRuta,
+    t.DistanciaKm = CAST(s.DistanciaKm AS DECIMAL(10,2)),
     t.activo = CAST(s.activo AS BIT),
-    t.updated_at = @now
+    t.FechaActualizacion = @now
 WHEN NOT MATCHED THEN
-  INSERT (id_origen_nodo, id_destino_nodo, nombre_ruta, distancia_km, activo, created_at, updated_at)
-  VALUES (s.id_origen_nodo, s.id_destino_nodo, s.nombre_ruta, CAST(s.distancia_km AS DECIMAL(10,2)), CAST(s.activo AS BIT), @now, @now);
+  INSERT (IdOrigenNodo, IdDestinoNodo, NombreRuta, DistanciaKm, activo, FechaCreacion, FechaActualizacion)
+  VALUES (s.IdOrigenNodo, s.IdDestinoNodo, s.NombreRuta, CAST(s.DistanciaKm AS DECIMAL(10,2)), CAST(s.activo AS BIT), @now, @now);
 
 ;WITH src(
   temporada_codigo,
@@ -556,7 +555,7 @@ WHEN NOT MATCHED THEN
   prioridad,
   regla,
   moneda,
-  monto_fijo,
+  MontoFijo,
   activo
 ) AS (
   SELECT *
@@ -1122,67 +1121,67 @@ WHEN NOT MATCHED THEN
     prioridad,
     regla,
     moneda,
-    monto_fijo,
+    MontoFijo,
     activo
   )
 ), resolved AS (
   SELECT
-    tp.id_temporada,
-    tc.id_tipo_camion,
-    r.id_ruta,
+    tp.IdTemporada,
+    tc.IdTipoCamion,
+    r.IdRuta AS IdRuta,
     s.vigencia_desde,
     s.vigencia_hasta,
     s.prioridad,
     s.regla,
     s.moneda,
-    s.monto_fijo,
+    s.MontoFijo,
     s.activo
   FROM src s
-  INNER JOIN cfl.CFL_temporada tp ON tp.codigo = s.temporada_codigo
-  INNER JOIN cfl.CFL_tipo_camion tc ON tc.nombre = s.tipo_camion_nombre
-  INNER JOIN cfl.CFL_nodo_logistico no ON no.nombre = s.origen_nombre
-  INNER JOIN cfl.CFL_nodo_logistico nd ON nd.nombre = s.destino_nombre
-  INNER JOIN cfl.CFL_ruta r ON r.id_origen_nodo = no.id_nodo AND r.id_destino_nodo = nd.id_nodo
+  INNER JOIN cfl.Temporada tp ON tp.codigo = s.temporada_codigo
+  INNER JOIN cfl.TipoCamion tc ON tc.nombre = s.tipo_camion_nombre
+  INNER JOIN cfl.NodoLogistico no ON no.nombre = s.origen_nombre
+  INNER JOIN cfl.NodoLogistico nd ON nd.nombre = s.destino_nombre
+  INNER JOIN cfl.Ruta r ON r.IdOrigenNodo = no.IdNodo AND r.IdDestinoNodo = nd.IdNodo
 )
-MERGE cfl.CFL_tarifa AS t
+MERGE cfl.Tarifa AS t
 USING resolved AS s
-ON t.id_temporada = s.id_temporada
-AND t.id_tipo_camion = s.id_tipo_camion
-AND t.id_ruta = s.id_ruta
-AND t.vigencia_desde = CAST(s.vigencia_desde AS DATE)
+ON t.IdTemporada = s.IdTemporada
+AND t.IdTipoCamion = s.IdTipoCamion
+AND t.IdRuta = s.IdRuta
+AND t.VigenciaDesde = CAST(s.vigencia_desde AS DATE)
 AND t.regla = s.regla
 AND t.prioridad = s.prioridad
 WHEN MATCHED THEN
   UPDATE SET
-    t.vigencia_hasta = CASE WHEN s.vigencia_hasta IS NULL THEN NULL ELSE CAST(s.vigencia_hasta AS DATE) END,
+    t.VigenciaHasta = CASE WHEN s.vigencia_hasta IS NULL THEN NULL ELSE CAST(s.vigencia_hasta AS DATE) END,
     t.moneda = s.moneda,
-    t.monto_fijo = CAST(s.monto_fijo AS DECIMAL(18,2)),
+    t.MontoFijo = CAST(s.MontoFijo AS DECIMAL(18,2)),
     t.activo = CAST(s.activo AS BIT),
-    t.updated_at = @now
+    t.FechaActualizacion = @now
 WHEN NOT MATCHED THEN
   INSERT (
-    id_tipo_camion,
-    id_temporada,
-    id_ruta,
-    vigencia_desde,
-    vigencia_hasta,
+    IdTipoCamion,
+    IdTemporada,
+    IdRuta,
+    VigenciaDesde,
+    VigenciaHasta,
     prioridad,
     regla,
     moneda,
-    monto_fijo,
+    MontoFijo,
     activo,
-    created_at,
-    updated_at
+    FechaCreacion,
+    FechaActualizacion
   ) VALUES (
-    s.id_tipo_camion,
-    s.id_temporada,
-    s.id_ruta,
+    s.IdTipoCamion,
+    s.IdTemporada,
+    s.IdRuta,
     CAST(s.vigencia_desde AS DATE),
     CASE WHEN s.vigencia_hasta IS NULL THEN NULL ELSE CAST(s.vigencia_hasta AS DATE) END,
     s.prioridad,
     s.regla,
     s.moneda,
-    CAST(s.monto_fijo AS DECIMAL(18,2)),
+    CAST(s.MontoFijo AS DECIMAL(18,2)),
     CAST(s.activo AS BIT),
     @now,
     @now

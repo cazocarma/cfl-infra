@@ -3,43 +3,43 @@ SET NOCOUNT ON;
 
 ;WITH raw_normalized AS (
     SELECT
-        sap_id_fiscal = NULLIF(LTRIM(RTRIM(sap_id_fiscal_chofer)), ''),
-        sap_nombre    = NULLIF(LTRIM(RTRIM(sap_nombre_chofer)), ''),
-        extracted_at,
-        raw_id
-    FROM [cfl].[CFL_sap_likp_raw]
+        SapIdFiscal = NULLIF(LTRIM(RTRIM(SapIdFiscalChofer)), ''),
+        SapNombre    = NULLIF(LTRIM(RTRIM(SapNombreChofer)), ''),
+        FechaExtraccion,
+        IdSapLikpRaw
+    FROM [cfl].[SapLikpRaw]
 ),
 raw_valid AS (
     SELECT
-        sap_id_fiscal,
-        sap_nombre,
-        extracted_at,
-        raw_id,
+        SapIdFiscal,
+        SapNombre,
+        FechaExtraccion,
+        IdSapLikpRaw,
         rn = ROW_NUMBER() OVER (
-            PARTITION BY sap_id_fiscal
-            ORDER BY extracted_at DESC, raw_id DESC
+            PARTITION BY SapIdFiscal
+            ORDER BY FechaExtraccion DESC, IdSapLikpRaw DESC
         )
     FROM raw_normalized
-    WHERE sap_id_fiscal IS NOT NULL
-      AND sap_nombre IS NOT NULL
+    WHERE SapIdFiscal IS NOT NULL
+      AND SapNombre IS NOT NULL
 ),
 src AS (
     SELECT
-        sap_id_fiscal,
-        sap_nombre,
+        SapIdFiscal,
+        SapNombre,
         telefono = CAST(NULL AS VARCHAR(20))
     FROM raw_valid
     WHERE rn = 1
 )
-MERGE [cfl].[CFL_chofer] AS t
+MERGE [cfl].[Chofer] AS t
 USING src AS s
-    ON t.sap_id_fiscal = s.sap_id_fiscal
+    ON t.SapIdFiscal = s.SapIdFiscal
 WHEN MATCHED THEN
     UPDATE SET
-        t.sap_nombre = s.sap_nombre,
+        t.SapNombre = s.SapNombre,
         t.activo = 1
 WHEN NOT MATCHED THEN
-    INSERT (sap_id_fiscal, sap_nombre, telefono, activo)
-    VALUES (s.sap_id_fiscal, s.sap_nombre, s.telefono, 1);
+    INSERT (SapIdFiscal, SapNombre, telefono, activo)
+    VALUES (s.SapIdFiscal, s.SapNombre, s.telefono, 1);
 
 COMMIT TRANSACTION;

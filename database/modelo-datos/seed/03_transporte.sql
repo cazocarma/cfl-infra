@@ -9,7 +9,7 @@ SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 DECLARE @now DATETIME2(0) = SYSDATETIME();
 
-;WITH src(sap_id_fiscal, sap_nombre, telefono, activo) AS (
+;WITH src(SapIdFiscal, SapNombre, telefono, activo) AS (
   SELECT *
   FROM (VALUES
   (N'002417451', N'GONZALEZ DOUGLAS RICHARD', NULL, 1),
@@ -765,21 +765,21 @@ DECLARE @now DATETIME2(0) = SYSDATETIME();
   (N'9928616-4', N'NELSON CABALLERIA', NULL, 1),
   (N'9928822-1', N'PABLO DIAZ', NULL, 1),
   (N'G012824-W', N'ERNESTO FERREIRA', NULL, 1)
-  ) v(sap_id_fiscal, sap_nombre, telefono, activo)
+  ) v(SapIdFiscal, SapNombre, telefono, activo)
 )
-MERGE cfl.CFL_chofer AS t
+MERGE cfl.Chofer AS t
 USING src AS s
-ON t.sap_id_fiscal = s.sap_id_fiscal
+ON t.SapIdFiscal = s.SapIdFiscal
 WHEN MATCHED THEN
   UPDATE SET
-    t.sap_nombre = s.sap_nombre,
+    t.SapNombre = s.SapNombre,
     t.telefono = s.telefono,
     t.activo = CAST(s.activo AS BIT)
 WHEN NOT MATCHED THEN
-  INSERT (sap_id_fiscal, sap_nombre, telefono, activo)
-  VALUES (s.sap_id_fiscal, s.sap_nombre, s.telefono, CAST(s.activo AS BIT));
+  INSERT (SapIdFiscal, SapNombre, telefono, activo)
+  VALUES (s.SapIdFiscal, s.SapNombre, s.telefono, CAST(s.activo AS BIT));
 
-;WITH src(tipo_camion_nombre, sap_patente, sap_carro, activo) AS (
+;WITH src(tipo_camion_nombre, SapPatente, SapCarro, activo) AS (
   SELECT *
   FROM (VALUES
 
@@ -1797,59 +1797,59 @@ WHEN NOT MATCHED THEN
   (N'PLANO SOLO', N'ZW4979', N'SIN-CARRO', 1),
   (N'PLANO CON CARRO', N'ZW4980', N'JP3735', 1),
   (N'PLANO SOLO', N'ZW5227', N'SIN-CARRO', 1)
-  ) v(tipo_camion_nombre, sap_patente, sap_carro, activo)
+  ) v(tipo_camion_nombre, SapPatente, SapCarro, activo)
 ), resolved AS (
   SELECT
-    tc.id_tipo_camion,
-    s.sap_patente,
-    s.sap_carro,
+    tc.IdTipoCamion,
+    s.SapPatente,
+    s.SapCarro,
     s.activo
   FROM src s
-  INNER JOIN cfl.CFL_tipo_camion tc ON tc.nombre = s.tipo_camion_nombre
+  INNER JOIN cfl.TipoCamion tc ON tc.nombre = s.tipo_camion_nombre
 )
-MERGE cfl.CFL_camion AS t
+MERGE cfl.Camion AS t
 USING resolved AS s
-ON t.sap_patente = s.sap_patente
-AND t.sap_carro = s.sap_carro
+ON t.SapPatente = s.SapPatente
+AND t.SapCarro = s.SapCarro
 WHEN MATCHED THEN
   UPDATE SET
-    t.id_tipo_camion = s.id_tipo_camion,
+    t.IdTipoCamion = s.IdTipoCamion,
     t.activo = CAST(s.activo AS BIT),
-    t.updated_at = @now
+    t.FechaActualizacion = @now
 WHEN NOT MATCHED THEN
-  INSERT (id_tipo_camion, sap_patente, sap_carro, activo, created_at, updated_at)
-  VALUES (s.id_tipo_camion, s.sap_patente, s.sap_carro, CAST(s.activo AS BIT), @now, @now);
+  INSERT (IdTipoCamion, SapPatente, SapCarro, activo, FechaCreacion, FechaActualizacion)
+  VALUES (s.IdTipoCamion, s.SapPatente, s.SapCarro, CAST(s.activo AS BIT), @now, @now);
 
-;WITH src(empresa_rut, chofer_id_fiscal, sap_patente, sap_carro, activo) AS (
+;WITH src(empresa_rut, chofer_id_fiscal, SapPatente, SapCarro, activo) AS (
   SELECT *
   FROM (VALUES
   (N'14017534-K', N'11870030-6', N'AA117LX', N'OVL927', 1),
   (N'76406384-8', N'20509423-7', N'BBFJ97', N'JB4218', 1),
   (N'76406384-8', N'20509423-7', N'BFZJ48', N'HOJG60', 1),
   (N'9647113-0', N'18105285-6', N'NK4774', N'JE6111', 1)
-  ) v(empresa_rut, chofer_id_fiscal, sap_patente, sap_carro, activo)
+  ) v(empresa_rut, chofer_id_fiscal, SapPatente, SapCarro, activo)
 ), resolved AS (
   SELECT
-    e.id_empresa AS id_empresa_transporte,
-    ch.id_chofer,
-    c.id_camion,
+    e.IdEmpresa AS IdEmpresaTransporte,
+    ch.IdChofer,
+    c.IdCamion,
     s.activo
   FROM src s
-  INNER JOIN cfl.CFL_empresa_transporte e ON e.rut = s.empresa_rut
-  INNER JOIN cfl.CFL_chofer ch ON ch.sap_id_fiscal = s.chofer_id_fiscal
-  INNER JOIN cfl.CFL_camion c ON c.sap_patente = s.sap_patente AND c.sap_carro = s.sap_carro
+  INNER JOIN cfl.EmpresaTransporte e ON e.rut = s.empresa_rut
+  INNER JOIN cfl.Chofer ch ON ch.SapIdFiscal = s.chofer_id_fiscal
+  INNER JOIN cfl.Camion c ON c.SapPatente = s.SapPatente AND c.SapCarro = s.SapCarro
 )
-MERGE cfl.CFL_movil AS t
+MERGE cfl.Movil AS t
 USING resolved AS s
-ON t.id_empresa_transporte = s.id_empresa_transporte
-AND t.id_chofer = s.id_chofer
-AND t.id_camion = s.id_camion
+ON t.IdEmpresaTransporte = s.IdEmpresaTransporte
+AND t.IdChofer = s.IdChofer
+AND t.IdCamion = s.IdCamion
 WHEN MATCHED THEN
   UPDATE SET
     t.activo = CAST(s.activo AS BIT),
-    t.updated_at = @now
+    t.FechaActualizacion = @now
 WHEN NOT MATCHED THEN
-  INSERT (id_chofer, id_empresa_transporte, id_camion, activo, created_at, updated_at)
-  VALUES (s.id_chofer, s.id_empresa_transporte, s.id_camion, CAST(s.activo AS BIT), @now, @now);
+  INSERT (IdChofer, IdEmpresaTransporte, IdCamion, activo, FechaCreacion, FechaActualizacion)
+  VALUES (s.IdChofer, s.IdEmpresaTransporte, s.IdCamion, CAST(s.activo AS BIT), @now, @now);
 
 COMMIT TRANSACTION;
