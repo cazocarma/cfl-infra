@@ -34,7 +34,7 @@ WHEN NOT MATCHED THEN
 ;WITH src(SapCodigo, nombre, activo) AS (
   SELECT *
   FROM (VALUES
-    (N'GC1010301', N'POR DEFINIR', 1), -- compatibilidad historica
+    --(N'GC1010301', N'POR DEFINIR', 1), -- compatibilidad historica
     (N'GC2010103', N'Proceso', 1),
     (N'GC1070101', N'Bodega Maipo', 1),
     (N'GC2010701', N'Linea Produccion Mercado Interno', 1),
@@ -74,9 +74,7 @@ WHEN NOT MATCHED THEN
   (N'51020315', N'FLETES MATERIALES / TRANSPORTE EXPORTACION'),
   (N'51020316', N'FLETES MERCADO NACIONAL'),
   (N'51020317', N'FLETES ATMOSFERA CONTROLADA'),
-  (N'51020318', N'FLETES MUESTRAS USDA'),
-  (N'51020502', N''),
-  (N'61010221', N'')
+  (N'51020318', N'FLETES MUESTRAS USDA')
   ) v(codigo, glosa)
 )
 MERGE cfl.CuentaMayor AS t
