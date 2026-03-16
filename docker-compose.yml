@@ -76,7 +76,7 @@ services:
       NPM_CONFIG_FUND: "false"
       PORT: "${PORT:-4000}"
       CORS_ORIGIN: "${CORS_ORIGIN:-http://localhost}"
-      JWT_SECRET: "${JWT_SECRET:-replace-with-a-long-random-dev-secret}"
+      AUTHN_JWT_SECRET: "${AUTHN_JWT_SECRET:-replace-with-a-long-random-dev-secret}"
       DB_HOST: "${DB_HOST:-host.docker.internal}"
       DB_PORT: "${DB_PORT:-1433}"
       DB_USER: "${DB_USER:-sa}"
@@ -121,7 +121,7 @@ services:
     environment:
       PORT: "4000"
       CORS_ORIGIN: "${CORS_ORIGIN:-http://localhost}"
-      JWT_SECRET: "${JWT_SECRET:-replace-with-a-long-random-dev-secret}"
+      AUTHN_JWT_SECRET: "${AUTHN_JWT_SECRET:-replace-with-a-long-random-dev-secret}"
       DB_HOST: "${DB_HOST:-host.docker.internal}"
       DB_PORT: "${DB_PORT:-1433}"
       DB_USER: "${DB_USER:-sa}"

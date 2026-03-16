@@ -1,85 +1,69 @@
 # cfl-infra
 
-Infraestructura local de desarrollo con Docker Compose.
+Infraestructura local de desarrollo para `greenvic-control-fletes`.
 
-## Variables de entorno centralizadas
+## Fuente de entorno
 
-Se usa un unico archivo de variables: `cfl-infra/.env`.
-No se usan `.env` separados en `cfl-back` ni `cfl-front-ng`.
+- Archivo real: `cfl-infra/.env`
+- Plantilla: `cfl-infra/.env.example`
+- `cfl-back` y `cfl-back-go` consumen este archivo; no usan `.env` propios
 
-## Levantar stack
+## Flujo recomendado
 
-1. Copiar `.env.example` a `.env`.
-2. Ajustar variables de backend/DB segun tu entorno.
-3. Desde `cfl-infra`, levantar servicios:
+Desde la raiz del monorepo:
 
 ```bash
-# App + gateway (usa DB externa)
-docker compose up -d
-
-# Stack completo incluyendo SQL Server local
-docker compose --profile db up -d --build
+make env-check
+make up-node
+make up-node-db
+make up-go
+make up-go-db
+make down
+make down-v
 ```
 
-Servicios principales:
-- `gateway` en `http://localhost` (puerto 80)
-- `front-ng` interno (`front-ng:80`)
-- `back` interno (`back:4000`)
-- `sqlserver` interno (solo con perfil `db`)
+## Perfiles disponibles
 
-El navegador solo necesita `gateway`:
-- `/` -> `front-ng`
-- `/api/*` -> `back`
+- `node`: backend Node
+- `go`: backend Go
+- `db`: SQL Server local
 
-## Configuracion de DB recomendada
+## Equivalentes docker compose
 
-Para SQL Server en el mismo compose (`--profile db`):
-- `DB_HOST=sqlserver`
-- `MSSQL_MEMORY_LIMIT_MB=1024` (recomendado en laptops para evitar presion de memoria)
+Desde `cfl-infra/`:
 
-Para SQL Server fuera de compose, ejecutando en la maquina host:
-- `DB_HOST=host.docker.internal`
+```bash
+docker compose --profile node up -d --build
+docker compose --profile node --profile db up -d --build
+docker compose --profile go up -d --build
+docker compose --profile go --profile db up -d --build
+docker compose --profile db up -d sqlserver
+```
 
-## Health checks
+## Servicios
 
-- Gateway: `GET /healthz`
-- Backend: `GET /api/health` (viene de `/health` en el back)
+- `gateway`: expone `http://localhost`
+- `front-ng`: frontend Angular
+- `back`: backend Node
+- `back-go`: backend Go
+- `sqlserver`: base de datos local
 
-Validacion rapida:
+## Validacion rapida
 
-```powershell
+```bash
 docker compose ps
 curl http://127.0.0.1/healthz
 curl http://127.0.0.1/api/health
 ```
 
-## Comandos rapidos
+## Reset de base de datos
 
-```powershell
-Copy-Item .env.example .env
-docker compose --profile db up -d --build
-docker compose logs -f gateway
+```bash
+docker compose down -v
 ```
 
-Detener y limpiar:
+o desde la raiz:
 
-```powershell
-docker compose down
+```bash
+make down-v
 ```
-
-## Notas de seguridad aplicadas
-
-- `depends_on` por salud (`service_healthy`) para evitar arrancar dependencias no listas.
-- Endurecimiento base de contenedores (`no-new-privileges` en todos los servicios).
-- Health checks activos en `gateway`, `front-ng`, `back` y `sqlserver`.
-- Imagen Node actualizada a `node:20-bookworm-slim` para mejor base de seguridad y mantenimiento.
-- Instalacion de dependencias con cache en backend (`npm install --prefer-offline`) para reducir tiempo y trafico en reinicios.
-- `front-ng` se ejecuta como imagen buildada (Angular compilado + Nginx), reduciendo consumo de memoria y superficie de ataque frente a `ng serve`.
-
-## Carpeta database
-
-`database/modelo-datos` queda organizado por rol:
-- `UP.sql`: modelo (schema/DDL).
-- `SEED.sql`: carga de datos iniciales por modulos (`seed/*.sql`).
-- `DOWN.sql`: eliminacion completa del esquema.
-- `ops/*.sql`: utilitarios/parches manuales (no forman parte del flujo base `UP + SEED`).
