@@ -105,47 +105,6 @@ services:
       retries: 20
       start_period: 30s
 
-  back-go:
-    profiles: ["go"]
-    build:
-      context: ../cfl-back-go
-      dockerfile: Dockerfile
-    image: cfl-back-go:local
-    init: true
-    restart: unless-stopped
-    pull_policy: if_not_present
-    security_opt:
-      - no-new-privileges:true
-    env_file:
-      - ./.env
-    environment:
-      PORT: "4000"
-      CORS_ORIGIN: "${CORS_ORIGIN:-http://localhost}"
-      AUTHN_JWT_SECRET: "${AUTHN_JWT_SECRET:-replace-with-a-long-random-dev-secret}"
-      DB_HOST: "${DB_HOST:-host.docker.internal}"
-      DB_PORT: "${DB_PORT:-1433}"
-      DB_USER: "${DB_USER:-sa}"
-      DB_PASSWORD: "${DB_PASSWORD:-ChangeThisStrongPass!123}"
-      DB_NAME: "${DB_NAME:-ControlFletesDev}"
-    expose:
-      - "4000"
-    ports:
-      - "${BACK_GO_PORT:-4001}:4000"
-    networks:
-      default:
-        aliases:
-          - api-backend
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget -q -O - http://127.0.0.1:4000/health > /dev/null 2>&1 || exit 1",
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 20s
-
   sqlserver:
     profiles: ["db"]
     build:

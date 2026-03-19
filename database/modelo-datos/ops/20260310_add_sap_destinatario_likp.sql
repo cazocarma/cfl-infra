@@ -1,35 +1,23 @@
 /* ============================================================================
-   MIGRACIÓN: Agrega SapDestinatario a SapLikpRaw
-   Fecha: 2026-03-10
-   Motivo: Campo destinatario SAP (KUNWE / sold-to party) requerido para
-           identificar al receptor de la entrega en el módulo de bandeja.
-   Ejecutar sobre BD existentes (no sobre BD nuevas creadas con UP.sql).
-   Script idempotente.
+   PATCH 20260310 - Agrega SapDestinatario a SapLikpRaw
+   Objetivo:
+   - Capturar el campo destinatario SAP (KUNWE / sold-to party) en la tabla
+     raw para identificar al receptor de la entrega en el modulo de bandeja.
+   Idempotente: SI
 ============================================================================ */
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
 
-BEGIN TRY
-    BEGIN TRANSACTION;
+BEGIN TRANSACTION;
 
-    -- Agregar columna SapDestinatario después de SapPuestoExpedicion
-    IF NOT EXISTS (
-        SELECT 1 FROM sys.columns
-        WHERE object_id = OBJECT_ID(N'[cfl].[SapLikpRaw]')
-          AND name = N'SapDestinatario'
-    )
-    BEGIN
-        ALTER TABLE [cfl].[SapLikpRaw]
-        ADD [SapDestinatario] NVARCHAR(20) NULL;
-        PRINT 'Columna SapDestinatario agregada a SapLikpRaw';
-    END
-    ELSE
-        PRINT 'Columna SapDestinatario ya existia en SapLikpRaw — sin cambio';
+IF NOT EXISTS (
+  SELECT 1 FROM sys.columns
+  WHERE object_id = OBJECT_ID(N'[cfl].[SapLikpRaw]')
+    AND name = N'SapDestinatario'
+)
+BEGIN
+  ALTER TABLE [cfl].[SapLikpRaw]
+    ADD [SapDestinatario] NVARCHAR(20) NULL;
+END;
 
-    COMMIT TRANSACTION;
-    PRINT 'Migracion 20260310_add_sap_destinatario_likp completada.';
-END TRY
-BEGIN CATCH
-    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-    DECLARE @msg NVARCHAR(4000) = ERROR_MESSAGE();
-    RAISERROR('Migracion fallida: %s', 16, 1, @msg);
-END CATCH;
-GO
+COMMIT TRANSACTION;
