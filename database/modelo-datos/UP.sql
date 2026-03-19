@@ -349,6 +349,17 @@ CREATE INDEX [IX_StgLips_Ejecucion]
 ON [cfl].[StgLips] ([IdEjecucion]);
 GO
 
+CREATE TABLE [cfl].[TokenBlocklist] (
+    Jti          CHAR(36)     NOT NULL,
+    IdUsuario    BIGINT       NOT NULL,
+    Motivo       VARCHAR(50)  NOT NULL,
+    ExpiresAt    DATETIME2    NOT NULL,
+    CreatedAt    DATETIME2    NOT NULL DEFAULT GETUTCDATE(),
+    CONSTRAINT PK_TokenBlocklist PRIMARY KEY (Jti),
+    INDEX IX_TokenBlocklist_ExpiresAt (ExpiresAt)
+);
+GO
+
 /* ============================================================
    TABLAS: catálogo y operación
 ============================================================ */

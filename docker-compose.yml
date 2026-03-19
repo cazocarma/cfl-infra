@@ -1,7 +1,7 @@
 name: greenvic-cfl
 
 x-node-service: &node-service
-  image: node:20-bookworm-slim
+  image: node:20-bookworm-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
   init: true
   restart: unless-stopped
   pull_policy: if_not_present
@@ -20,10 +20,15 @@ x-node-service: &node-service
 
 services:
   gateway:
-    image: nginx:1.27-alpine
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     init: true
     restart: unless-stopped
     pull_policy: if_not_present
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
     ports:
       - "80:80"
     volumes:
@@ -33,6 +38,11 @@ services:
         condition: service_healthy
     security_opt:
       - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz > /dev/null 2>&1 || exit 1"]
       interval: 15s
@@ -48,8 +58,18 @@ services:
     init: true
     restart: unless-stopped
     pull_policy: if_not_present
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
     security_opt:
       - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
     expose:
       - "80"
     healthcheck:
@@ -66,6 +86,11 @@ services:
     working_dir: /workspace/cfl-back
     env_file:
       - ./.env
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
     environment:
       NODE_ENV: "development"
       NPM_CONFIG_FETCH_RETRIES: "5"
@@ -75,13 +100,6 @@ services:
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
       PORT: "${PORT:-4000}"
-      CORS_ORIGIN: "${CORS_ORIGIN:-http://localhost}"
-      AUTHN_JWT_SECRET: "${AUTHN_JWT_SECRET:-replace-with-a-long-random-dev-secret}"
-      DB_HOST: "${DB_HOST:-host.docker.internal}"
-      DB_PORT: "${DB_PORT:-1433}"
-      DB_USER: "${DB_USER:-sa}"
-      DB_PASSWORD: "${DB_PASSWORD:-ChangeThisStrongPass!123}"
-      DB_NAME: "${DB_NAME:-ControlFletesDev}"
     expose:
       - "4000"
     networks:
@@ -105,37 +123,6 @@ services:
       retries: 20
       start_period: 30s
 
-  sqlserver:
-    profiles: ["db"]
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "${MSSQL_PORT:-1433}:1433"
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_PID: "Developer"
-      MSSQL_MEMORY_LIMIT_MB: "${MSSQL_MEMORY_LIMIT_MB:-1024}"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
-      MSSQL_DB: "${MSSQL_DB:-ControlFletesDev}"
-    volumes:
-      - mssql-data:/var/opt/mssql
-      - ./database:/var/opt/mssql/seed:ro
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\"",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 40s
-    security_opt:
-      - no-new-privileges:true
-
 volumes:
-  mssql-data:
   npm-cache:
   back-node_modules:

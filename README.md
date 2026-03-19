@@ -26,7 +26,6 @@ make down-v
 
 - `node`: backend Node
 - `go`: backend Go
-- `db`: SQL Server local
 
 ## Equivalentes docker compose
 
@@ -34,10 +33,7 @@ Desde `cfl-infra/`:
 
 ```bash
 docker compose --profile node up -d --build
-docker compose --profile node --profile db up -d --build
 docker compose --profile go up -d --build
-docker compose --profile go --profile db up -d --build
-docker compose --profile db up -d sqlserver
 ```
 
 ## Servicios
@@ -46,7 +42,6 @@ docker compose --profile db up -d sqlserver
 - `front-ng`: frontend Angular
 - `back`: backend Node
 - `back-go`: backend Go
-- `sqlserver`: base de datos local
 
 ## Validacion rapida
 
@@ -54,16 +49,4 @@ docker compose --profile db up -d sqlserver
 docker compose ps
 curl http://127.0.0.1/healthz
 curl http://127.0.0.1/api/health
-```
-
-## Reset de base de datos
-
-```bash
-docker compose down -v
-```
-
-o desde la raiz:
-
-```bash
-make down-v
 ```
