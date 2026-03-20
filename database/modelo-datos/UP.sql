@@ -670,6 +670,7 @@ CREATE TABLE [cfl].[CabeceraFlete] (
     [FechaSalida]        DATE          NOT NULL,
     [HoraSalida]         TIME          NOT NULL,
     [MontoAplicado]      DECIMAL(18,2) NOT NULL,
+    [MontoExtra]         DECIMAL(18,2) NOT NULL DEFAULT 0,
     [Observaciones]      NVARCHAR(200)  NULL,
     [IdCuentaMayor]      BIGINT        NULL,
     [IdImputacionFlete]  BIGINT        NULL,
