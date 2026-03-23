@@ -747,11 +747,10 @@ GO
 /* ============================================================
    TABLA: cfl.CabeceraFactura  (ex CFL_cabecera_factura)
    Incluye CriterioAgrupacion, Observaciones (módulo facturación)
-   IdFolio es nullable (bridge FacturaFolio cubre n:m)
+   Relación con folios via bridge FacturaFolio (n:m)
 ============================================================ */
 CREATE TABLE [cfl].[CabeceraFactura] (
     [IdFactura]           BIGINT NOT NULL IDENTITY UNIQUE,
-    [IdFolio]             BIGINT        NULL,
     [IdEmpresa]           BIGINT        NOT NULL,
     [NumeroFactura]       NVARCHAR(40)   NOT NULL,
     [FechaEmision]        DATETIME2(0)  NOT NULL,
@@ -788,18 +787,6 @@ GO
 
 CREATE UNIQUE INDEX [UQ_FacturaFolio_FacturaFolio]
 ON [cfl].[FacturaFolio] ([IdFactura], [IdFolio]);
-GO
-
-/* ============================================================
-   TABLA: cfl.DetalleFactura  (ex CFL_detalle_factura)
-============================================================ */
-CREATE TABLE [cfl].[DetalleFactura] (
-    [IdFacturaDetalle]  BIGINT NOT NULL IDENTITY UNIQUE,
-    [IdFactura]         BIGINT        NOT NULL,
-    [MontoLinea]        DECIMAL(18,2) NULL,
-    [Detalle]           NVARCHAR(200)  NULL,
-    PRIMARY KEY ([IdFacturaDetalle])
-);
 GO
 
 /* ============================================================
@@ -1234,13 +1221,6 @@ FOREIGN KEY ([IdUsuario]) REFERENCES [cfl].[Usuario] ([IdUsuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
--- CabeceraFactura → Folio (nullable: bridge FacturaFolio cubre n:m)
-ALTER TABLE [cfl].[CabeceraFactura]
-ADD CONSTRAINT [FK_CabeceraFactura_Folio]
-FOREIGN KEY ([IdFolio]) REFERENCES [cfl].[Folio] ([IdFolio])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
 -- CabeceraFactura → EmpresaTransporte
 ALTER TABLE [cfl].[CabeceraFactura]
 ADD CONSTRAINT [FK_CabeceraFactura_EmpresaTransporte]
@@ -1259,13 +1239,6 @@ GO
 ALTER TABLE [cfl].[FacturaFolio]
 ADD CONSTRAINT [FK_FacturaFolio_Folio]
 FOREIGN KEY ([IdFolio]) REFERENCES [cfl].[Folio] ([IdFolio])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
--- DetalleFactura → CabeceraFactura
-ALTER TABLE [cfl].[DetalleFactura]
-ADD CONSTRAINT [FK_DetalleFactura_CabeceraFactura]
-FOREIGN KEY ([IdFactura]) REFERENCES [cfl].[CabeceraFactura] ([IdFactura])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
