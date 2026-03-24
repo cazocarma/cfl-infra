@@ -13,7 +13,7 @@ DECLARE @now DATETIME2(0) = SYSDATETIME();
   SELECT *
   FROM (VALUES
   (N'Administrador', N'Acceso total al sistema', 1),
-  (N'Autorizador', N'Aprueba/cierra folios y autoriza cambios', 1),
+  (N'Autorizador', N'Aprueba prefacturas y autoriza cambios', 1),
   (N'Ingresador', N'Registra/edita fletes y conciliaciones', 1)
   ) v(nombre, descripcion, activo)
 )
@@ -67,8 +67,6 @@ WHEN NOT MATCHED THEN
   (N'fletes', N'discard_sap', N'fletes.sap.descartar', N'Descartar entrega SAP de candidatos', 1),
   (N'fletes', N'execute_sap_load', N'fletes.sap.etl.ejecutar', N'Ejecutar cargas SAP on-demand de control de fletes', 1),
   (N'fletes', N'view_sap_load_jobs', N'fletes.sap.etl.ver', N'Consultar jobs de cargas SAP on-demand', 1),
-  (N'folios', N'assign', N'folios.asignar', N'Asignar/reasignar folio', 1),
-  (N'folios', N'close', N'folios.cerrar', N'Cerrar folio', 1),
   (N'mantenedores', N'admin', N'mantenedores.admin', N'Administracion completa de mantenedores', 1),
   (N'mantenedores', N'edit', N'mantenedores.edit.camiones', N'Editar mantenedor camiones', 1),
   (N'mantenedores', N'edit', N'mantenedores.edit.centros-costo', N'Editar mantenedor centros de costo', 1),
@@ -77,7 +75,6 @@ WHEN NOT MATCHED THEN
   (N'mantenedores', N'edit', N'mantenedores.edit.detalles-viaje', N'Editar mantenedor detalles de viaje', 1),
   (N'mantenedores', N'edit', N'mantenedores.edit.empresas-transporte', N'Editar mantenedor empresas de transporte', 1),
   (N'mantenedores', N'edit', N'mantenedores.edit.especies', N'Editar mantenedor especies', 1),
-  (N'mantenedores', N'edit', N'mantenedores.edit.folios', N'Editar mantenedor folios', 1),
   (N'mantenedores', N'edit', N'mantenedores.edit.nodos', N'Editar mantenedor nodos', 1),
   (N'mantenedores', N'edit', N'mantenedores.edit.rutas', N'Editar mantenedor rutas', 1),
   (N'mantenedores', N'edit', N'mantenedores.edit.tarifas', N'Editar mantenedor tarifas', 1),
@@ -140,8 +137,6 @@ WHEN NOT MATCHED THEN
   (N'Administrador', N'fletes.sap.descartar'),
   (N'Administrador', N'fletes.sap.etl.ejecutar'),
   (N'Administrador', N'fletes.sap.etl.ver'),
-  (N'Administrador', N'folios.asignar'),
-  (N'Administrador', N'folios.cerrar'),
   (N'Administrador', N'mantenedores.admin'),
   (N'Administrador', N'mantenedores.edit.camiones'),
   (N'Administrador', N'mantenedores.edit.centros-costo'),
@@ -150,7 +145,6 @@ WHEN NOT MATCHED THEN
   (N'Administrador', N'mantenedores.edit.detalles-viaje'),
   (N'Administrador', N'mantenedores.edit.empresas-transporte'),
   (N'Administrador', N'mantenedores.edit.especies'),
-  (N'Administrador', N'mantenedores.edit.folios'),
   (N'Administrador', N'mantenedores.edit.nodos'),
   (N'Administrador', N'mantenedores.edit.rutas'),
   (N'Administrador', N'mantenedores.edit.tarifas'),
@@ -174,8 +168,6 @@ WHEN NOT MATCHED THEN
   (N'Autorizador', N'fletes.sap.descartar'),
   (N'Autorizador', N'fletes.sap.etl.ejecutar'),
   (N'Autorizador', N'fletes.sap.etl.ver'),
-  (N'Autorizador', N'folios.asignar'),
-  (N'Autorizador', N'folios.cerrar'),
   (N'Autorizador', N'mantenedores.edit.camiones'),
   (N'Autorizador', N'mantenedores.edit.centros-costo'),
   (N'Autorizador', N'mantenedores.edit.choferes'),

@@ -7,7 +7,6 @@
    2) Logistica y tarifas
    3) Maestros de transporte
    4) Seguridad (roles, usuarios, permisos)
-   5) Folios base
 
    Nota:
    - Este archivo se ejecuta con sqlcmd desde init-db.sh.

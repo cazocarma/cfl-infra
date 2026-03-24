@@ -1820,36 +1820,4 @@ WHEN NOT MATCHED THEN
   INSERT (IdTipoCamion, SapPatente, SapCarro, activo, FechaCreacion, FechaActualizacion)
   VALUES (s.IdTipoCamion, s.SapPatente, s.SapCarro, CAST(s.activo AS BIT), @now, @now);
 
-;WITH src(empresa_rut, chofer_id_fiscal, SapPatente, SapCarro, activo) AS (
-  SELECT *
-  FROM (VALUES
-  (N'14017534-K', N'11870030-6', N'AA117LX', N'OVL927', 1),
-  (N'76406384-8', N'20509423-7', N'BBFJ97', N'JB4218', 1),
-  (N'76406384-8', N'20509423-7', N'BFZJ48', N'HOJG60', 1),
-  (N'9647113-0', N'18105285-6', N'NK4774', N'JE6111', 1)
-  ) v(empresa_rut, chofer_id_fiscal, SapPatente, SapCarro, activo)
-), resolved AS (
-  SELECT
-    e.IdEmpresa AS IdEmpresaTransporte,
-    ch.IdChofer,
-    c.IdCamion,
-    s.activo
-  FROM src s
-  INNER JOIN cfl.EmpresaTransporte e ON e.rut = s.empresa_rut
-  INNER JOIN cfl.Chofer ch ON ch.SapIdFiscal = s.chofer_id_fiscal
-  INNER JOIN cfl.Camion c ON c.SapPatente = s.SapPatente AND c.SapCarro = s.SapCarro
-)
-MERGE cfl.Movil AS t
-USING resolved AS s
-ON t.IdEmpresaTransporte = s.IdEmpresaTransporte
-AND t.IdChofer = s.IdChofer
-AND t.IdCamion = s.IdCamion
-WHEN MATCHED THEN
-  UPDATE SET
-    t.activo = CAST(s.activo AS BIT),
-    t.FechaActualizacion = @now
-WHEN NOT MATCHED THEN
-  INSERT (IdChofer, IdEmpresaTransporte, IdCamion, activo, FechaCreacion, FechaActualizacion)
-  VALUES (s.IdChofer, s.IdEmpresaTransporte, s.IdCamion, CAST(s.activo AS BIT), @now, @now);
-
 COMMIT TRANSACTION;

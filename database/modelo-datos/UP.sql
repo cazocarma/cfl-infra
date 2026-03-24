@@ -410,30 +410,6 @@ CREATE UNIQUE INDEX [UQ_CuentaMayor_Codigo]
 ON [cfl].[CuentaMayor] ([Codigo]);
 GO
 
-CREATE TABLE [cfl].[Folio] (
-    [IdFolio]               BIGINT NOT NULL IDENTITY UNIQUE,
-    [IdUsuarioCierre]       BIGINT       NULL,
-    [IdCentroCosto]         BIGINT       NOT NULL,
-    [IdCuentaMayor]         BIGINT       NULL,
-    [IdTemporada]           BIGINT       NOT NULL,
-    [FolioNumero]           NVARCHAR(30)  NOT NULL,
-    [PeriodoDesde]          DATETIME2(0) NULL,
-    [PeriodoHasta]          DATETIME2(0) NULL,
-    [Estado]                NVARCHAR(20)  NOT NULL,
-    [Bloqueado]             BIT          NOT NULL,
-    [FechaCierre]           DATETIME2(0) NULL,
-    [ResultadoCuadratura]   NVARCHAR(20)  NULL,
-    [ResumenCuadratura]     NVARCHAR(500) NULL,
-    [FechaCreacion]         DATETIME2(0) NOT NULL,
-    [FechaActualizacion]    DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([IdFolio])
-);
-GO
-
-CREATE UNIQUE INDEX [UQ_Folio_TemporadaCcCuenta]
-ON [cfl].[Folio] ([IdTemporada], [IdCentroCosto], [IdCuentaMayor], [FolioNumero]);
-GO
-
 CREATE TABLE [cfl].[NodoLogistico] (
     [IdNodo]    BIGINT NOT NULL IDENTITY UNIQUE,
     [Nombre]    NVARCHAR(100) NOT NULL,
@@ -676,7 +652,6 @@ CREATE TABLE [cfl].[CabeceraFlete] (
     [IdImputacionFlete]  BIGINT        NULL,
     [IdCentroCosto]      BIGINT        NOT NULL,
     [IdProductor]        BIGINT        NULL,
-    [IdFolio]            BIGINT        NULL,
     [SentidoFlete]       NVARCHAR(20)   NULL,
     [IdTipoFlete]        BIGINT        NOT NULL,
     [IdDetalleViaje]     BIGINT        NULL,
@@ -691,8 +666,9 @@ CREATE TABLE [cfl].[CabeceraFlete] (
 );
 GO
 
-CREATE INDEX [IX_CabeceraFlete_FolioEstado]
-ON [cfl].[CabeceraFlete] ([IdFolio], [Estado]);
+CREATE INDEX [IX_CabeceraFlete_EstadoIdFactura]
+ON [cfl].[CabeceraFlete] ([Estado], [IdFactura])
+WHERE [IdFactura] IS NULL;
 GO
 
 CREATE INDEX [IX_CabeceraFlete_IdCuentaMayor]
@@ -747,7 +723,7 @@ GO
 /* ============================================================
    TABLA: cfl.CabeceraFactura  (ex CFL_cabecera_factura)
    Incluye CriterioAgrupacion, Observaciones (módulo facturación)
-   Relación con folios via bridge FacturaFolio (n:m)
+   Relación directa con movimientos via CabeceraFlete.IdFactura
 ============================================================ */
 CREATE TABLE [cfl].[CabeceraFactura] (
     [IdFactura]           BIGINT NOT NULL IDENTITY UNIQUE,
@@ -774,22 +750,6 @@ ON [cfl].[CabeceraFactura] ([IdEmpresa], [NumeroFactura]);
 GO
 
 /* ============================================================
-   TABLA: cfl.FacturaFolio  (nueva — bridge factura ↔ folio)
-============================================================ */
-CREATE TABLE [cfl].[FacturaFolio] (
-    [IdFacturaFolio]  BIGINT NOT NULL IDENTITY UNIQUE,
-    [IdFactura]       BIGINT       NOT NULL,
-    [IdFolio]         BIGINT       NOT NULL,
-    [FechaCreacion]   DATETIME2(0) NOT NULL,
-    PRIMARY KEY ([IdFacturaFolio])
-);
-GO
-
-CREATE UNIQUE INDEX [UQ_FacturaFolio_FacturaFolio]
-ON [cfl].[FacturaFolio] ([IdFactura], [IdFolio]);
-GO
-
-/* ============================================================
    TABLA: cfl.ConciliacionFacturaFlete  (ex CFL_conciliacion_factura_flete)
 ============================================================ */
 CREATE TABLE [cfl].[ConciliacionFacturaFlete] (
@@ -809,6 +769,91 @@ GO
 
 CREATE UNIQUE INDEX [UQ_ConciliacionFacturaFlete_FacturaFlete]
 ON [cfl].[ConciliacionFacturaFlete] ([IdFactura], [IdCabeceraFlete]);
+GO
+
+/* ============================================================
+   TABLA: cfl.PlanillaSap  (cabecera planilla SAP)
+============================================================ */
+CREATE TABLE [cfl].[PlanillaSap] (
+    [IdPlanillaSap]         BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdFactura]             BIGINT        NOT NULL,
+    [FechaDocumento]        DATE          NOT NULL,
+    [FechaContabilizacion]  DATE          NOT NULL,
+    [GlosaCabecera]         NVARCHAR(100) NOT NULL,
+    [SociedadFI]            NVARCHAR(10)  NOT NULL DEFAULT '1000',
+    [ClaseDocumento]        NVARCHAR(10)  NOT NULL DEFAULT 'KA',
+    [Moneda]                CHAR(3)       NOT NULL DEFAULT 'CLP',
+    [Temporada]             NVARCHAR(20)  NULL,
+    [CodigoCargoAbono]      NVARCHAR(20)  NULL,
+    [GlosaCargoAbono]       NVARCHAR(100) NULL,
+    [IndicadorImpuesto]     NVARCHAR(10)  NOT NULL DEFAULT 'C0',
+    [TotalLineas]           INT           NOT NULL DEFAULT 0,
+    [TotalDocumentos]       INT           NOT NULL DEFAULT 0,
+    [MontoTotal]            DECIMAL(18,2) NOT NULL DEFAULT 0,
+    [Estado]                NVARCHAR(20)  NOT NULL DEFAULT 'generada',
+    [IdUsuarioCreador]      BIGINT        NULL,
+    [FechaCreacion]         DATETIME2(0)  NOT NULL,
+    [FechaActualizacion]    DATETIME2(0)  NOT NULL,
+    PRIMARY KEY ([IdPlanillaSap])
+);
+GO
+
+CREATE INDEX [IX_PlanillaSap_IdFactura]
+ON [cfl].[PlanillaSap] ([IdFactura]);
+GO
+
+CREATE INDEX [IX_PlanillaSap_Estado]
+ON [cfl].[PlanillaSap] ([Estado], [FechaCreacion] DESC);
+GO
+
+/* ============================================================
+   TABLA: cfl.PlanillaSapDocumento  (documento contable SAP)
+============================================================ */
+CREATE TABLE [cfl].[PlanillaSapDocumento] (
+    [IdPlanillaSapDocumento] BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdPlanillaSap]          BIGINT        NOT NULL,
+    [NumeroDocumento]        INT           NOT NULL,
+    [IdCentroCosto]          BIGINT        NULL,
+    [CentroCostoCodigo]      NVARCHAR(20)  NULL,
+    [IdCuentaMayor]          BIGINT        NULL,
+    [CuentaMayorCodigo]      NVARCHAR(30)  NULL,
+    [MontoDebito]            DECIMAL(18,2) NOT NULL DEFAULT 0,
+    [TotalLineas]            INT           NOT NULL DEFAULT 0,
+    PRIMARY KEY ([IdPlanillaSapDocumento])
+);
+GO
+
+CREATE INDEX [IX_PlanillaSapDocumento_IdPlanillaSap]
+ON [cfl].[PlanillaSapDocumento] ([IdPlanillaSap]);
+GO
+
+/* ============================================================
+   TABLA: cfl.PlanillaSapLinea  (línea TSV para carga SAP)
+============================================================ */
+CREATE TABLE [cfl].[PlanillaSapLinea] (
+    [IdPlanillaSapLinea]      BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdPlanillaSapDocumento]  BIGINT        NOT NULL,
+    [NumeroLinea]             INT           NOT NULL,
+    [EsDocNuevo]              BIT           NOT NULL DEFAULT 0,
+    [ClaveContabilizacion]    NVARCHAR(10)  NOT NULL,
+    [CuentaMayor]             NVARCHAR(30)  NULL,
+    [CodigoProveedor]         NVARCHAR(20)  NULL,
+    [IndicadorCME]            NVARCHAR(5)   NULL,
+    [Importe]                 DECIMAL(18,2) NOT NULL,
+    [CentroCosto]             NVARCHAR(20)  NULL,
+    [OrdenCompra]             NVARCHAR(30)  NULL,
+    [PosicionOC]              NVARCHAR(10)  NULL,
+    [NroAsignacion]           NVARCHAR(100) NULL,
+    [TextoLinea]              NVARCHAR(100) NULL,
+    [IndicadorImpuesto]       NVARCHAR(10)  NULL,
+    [Temporada]               NVARCHAR(20)  NULL,
+    [TipoCargoAbono]          NVARCHAR(20)  NULL,
+    PRIMARY KEY ([IdPlanillaSapLinea])
+);
+GO
+
+CREATE INDEX [IX_PlanillaSapLinea_IdDocumento]
+ON [cfl].[PlanillaSapLinea] ([IdPlanillaSapDocumento]);
 GO
 
 /* ============================================================
@@ -1004,34 +1049,6 @@ FOREIGN KEY ([IdUsuarioCierre]) REFERENCES [cfl].[Usuario] ([IdUsuario])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
--- Folio → CentroCosto
-ALTER TABLE [cfl].[Folio]
-ADD CONSTRAINT [FK_Folio_CentroCosto]
-FOREIGN KEY ([IdCentroCosto]) REFERENCES [cfl].[CentroCosto] ([IdCentroCosto])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
--- Folio → CuentaMayor
-ALTER TABLE [cfl].[Folio]
-ADD CONSTRAINT [FK_Folio_CuentaMayor]
-FOREIGN KEY ([IdCuentaMayor]) REFERENCES [cfl].[CuentaMayor] ([IdCuentaMayor])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
--- Folio → Temporada
-ALTER TABLE [cfl].[Folio]
-ADD CONSTRAINT [FK_Folio_Temporada]
-FOREIGN KEY ([IdTemporada]) REFERENCES [cfl].[Temporada] ([IdTemporada])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
--- Folio → Usuario (cierre)
-ALTER TABLE [cfl].[Folio]
-ADD CONSTRAINT [FK_Folio_UsuarioCierre]
-FOREIGN KEY ([IdUsuarioCierre]) REFERENCES [cfl].[Usuario] ([IdUsuario])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
 -- Ruta → NodoLogistico (origen)
 ALTER TABLE [cfl].[Ruta]
 ADD CONSTRAINT [FK_Ruta_NodoLogisticoOrigen]
@@ -1113,13 +1130,6 @@ GO
 ALTER TABLE [cfl].[Tarifa]
 ADD CONSTRAINT [FK_Tarifa_TipoCamion]
 FOREIGN KEY ([IdTipoCamion]) REFERENCES [cfl].[TipoCamion] ([IdTipoCamion])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
--- CabeceraFlete → Folio
-ALTER TABLE [cfl].[CabeceraFlete]
-ADD CONSTRAINT [FK_CabeceraFlete_Folio]
-FOREIGN KEY ([IdFolio]) REFERENCES [cfl].[Folio] ([IdFolio])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
@@ -1228,17 +1238,24 @@ FOREIGN KEY ([IdEmpresa]) REFERENCES [cfl].[EmpresaTransporte] ([IdEmpresa])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
--- FacturaFolio → CabeceraFactura
-ALTER TABLE [cfl].[FacturaFolio]
-ADD CONSTRAINT [FK_FacturaFolio_CabeceraFactura]
+-- PlanillaSap → CabeceraFactura
+ALTER TABLE [cfl].[PlanillaSap]
+ADD CONSTRAINT [FK_PlanillaSap_CabeceraFactura]
 FOREIGN KEY ([IdFactura]) REFERENCES [cfl].[CabeceraFactura] ([IdFactura])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
--- FacturaFolio → Folio
-ALTER TABLE [cfl].[FacturaFolio]
-ADD CONSTRAINT [FK_FacturaFolio_Folio]
-FOREIGN KEY ([IdFolio]) REFERENCES [cfl].[Folio] ([IdFolio])
+-- PlanillaSapDocumento → PlanillaSap
+ALTER TABLE [cfl].[PlanillaSapDocumento]
+ADD CONSTRAINT [FK_PlanillaSapDocumento_PlanillaSap]
+FOREIGN KEY ([IdPlanillaSap]) REFERENCES [cfl].[PlanillaSap] ([IdPlanillaSap])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- PlanillaSapLinea → PlanillaSapDocumento
+ALTER TABLE [cfl].[PlanillaSapLinea]
+ADD CONSTRAINT [FK_PlanillaSapLinea_PlanillaSapDocumento]
+FOREIGN KEY ([IdPlanillaSapDocumento]) REFERENCES [cfl].[PlanillaSapDocumento] ([IdPlanillaSapDocumento])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 

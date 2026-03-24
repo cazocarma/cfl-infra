@@ -34,13 +34,12 @@ WHEN NOT MATCHED THEN
 ;WITH src(SapCodigo, nombre, activo) AS (
   SELECT *
   FROM (VALUES
-    --(N'GC1010301', N'POR DEFINIR', 1), -- compatibilidad historica
-    (N'GC2010103', N'Proceso', 1),
+    (N'GC2010103', N'Proceso Maipo', 1),
     (N'GC1070101', N'Bodega Maipo', 1),
     (N'GC2010701', N'Linea Produccion Mercado Interno', 1),
     (N'GC2010401', N'Maipo ATM', 1),
     (N'GC5020101', N'Programa Maipo', 1),
-    (N'GC2030106', N'Proceso', 1),
+    (N'GC2030106', N'Proceso Placilla', 1),
     (N'GC1070201', N'Bodega Placilla', 1),
     (N'GC2030301', N'Placilla Usda/Sag', 1),
     (N'GC2030401', N'Linea Produccion Uva', 1),
@@ -49,7 +48,7 @@ WHEN NOT MATCHED THEN
     (N'GC2040301', N'Organik Usda/Sag', 1),
     (N'GC3020101', N'Exp-Com-Comex', 1),
     (N'GC5020201', N'Programa Placilla', 1),
-    (N'GC2050104', N'Proceso', 1),
+    (N'GC2050104', N'Proceso Callaqui', 1),
     (N'GC1070301', N'Bodega Los Angeles', 1),
     (N'GC2050301', N'Los Angeles Usda/Sag', 1),
     (N'GC2050401', N'Los Angeles ATM', 1),
@@ -235,7 +234,7 @@ WHEN NOT MATCHED THEN
   FROM (VALUES
   (N'0001', N'TRASLADO DE FRUTA', 1),
   (N'0002', N'TRASLADO DE MATERIALES', 1),
-  (N'0003', N'TRASLADO PUERTO - AEROPUERTO', 1),
+  (N'0003', N'TRASLADO PUERTO - AEROPUERTO', 0),
   (N'0004', N'TRASLADO INTERPLANTA', 1),
   (N'0005', N'TRASLADO MERCADO NACIONAL', 1),
   (N'0006', N'TRASLADO MUESTRA USDA', 1)

@@ -20,10 +20,9 @@
      SapEntregaHistorial, SapEntrega, SapEntregaDescarte
      -- Fletes
      DetalleFlete, FleteEstadoHistorial, FleteSapEntrega, CabeceraFlete
-     -- Folios
-     Folio
-     -- Facturas
-     DetalleFactura, ConciliacionFacturaFlete, FacturaFolio, CabeceraFactura
+     -- Facturas y planillas
+     PlanillaSapLinea, PlanillaSapDocumento, PlanillaSap,
+     ConciliacionFacturaFlete, CabeceraFactura
      -- Auditoria
      Auditoria
 
@@ -47,10 +46,13 @@ INSERT INTO @tables (tabla) VALUES
     /* ── Auditoria ── */
     ('Auditoria'),
 
+    /* ── Planillas SAP (hijos primero) ── */
+    ('PlanillaSapLinea'),
+    ('PlanillaSapDocumento'),
+    ('PlanillaSap'),
+
     /* ── Facturas (hijos primero) ── */
-    ('DetalleFactura'),
     ('ConciliacionFacturaFlete'),
-    ('FacturaFolio'),
     ('CabeceraFactura'),
 
     /* ── Fletes (hijos primero) ── */
@@ -58,9 +60,6 @@ INSERT INTO @tables (tabla) VALUES
     ('FleteEstadoHistorial'),
     ('FleteSapEntrega'),
     ('CabeceraFlete'),
-
-    /* ── Folios ── */
-    ('Folio'),
 
     /* ── SAP canonicas (hijos primero) ── */
     ('SapEntregaPosicionHistorial'),
