@@ -8,7 +8,7 @@ x-node-service: &node-service
   security_opt:
     - no-new-privileges:true
   environment:
-    NODE_ENV: "development"
+    NODE_ENV: "${NODE_ENV:-development}"
     NPM_CONFIG_FETCH_RETRIES: "5"
     NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
     NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
@@ -60,8 +60,8 @@ services:
     pull_policy: if_not_present
     read_only: true
     tmpfs:
-      - /var/cache/nginx
-      - /var/run
+      - /var/cache/nginx:uid=101,gid=101
+      - /var/run:uid=101,gid=101
       - /tmp
     security_opt:
       - no-new-privileges:true
@@ -92,7 +92,7 @@ services:
           memory: 512M
           cpus: "1.0"
     environment:
-      NODE_ENV: "development"
+      NODE_ENV: "${NODE_ENV:-development}"
       NPM_CONFIG_FETCH_RETRIES: "5"
       NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
       NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"

@@ -11,8 +11,8 @@
      Usuario, Rol, Permiso, UsuarioRol, RolPermiso
 
    Tablas PURGADAS (transaccional):
-     -- ETL
-     EtlEjecucion
+     -- ETL + staging
+     EtlEjecucion, StgLikp, StgLips
      -- SAP raw
      SapLikpRaw, SapLipsRaw
      -- SAP canonicas + historial
@@ -23,6 +23,8 @@
      -- Facturas y planillas
      PlanillaSapLinea, PlanillaSapDocumento, PlanillaSap,
      ConciliacionFacturaFlete, CabeceraFactura
+     -- Sesiones
+     TokenBlocklist
      -- Auditoria
      Auditoria
 
@@ -72,8 +74,15 @@ INSERT INTO @tables (tabla) VALUES
     ('SapLipsRaw'),
     ('SapLikpRaw'),
 
+    /* ── SAP staging ── */
+    ('StgLips'),
+    ('StgLikp'),
+
     /* ── ETL ── */
-    ('EtlEjecucion');
+    ('EtlEjecucion'),
+
+    /* ── Sesiones ── */
+    ('TokenBlocklist');
 
 /* ============================================================================
    Construccion del script dinamico

@@ -737,10 +737,11 @@ CREATE TABLE [cfl].[CabeceraFactura] (
     [Estado]              NVARCHAR(20)   NOT NULL,
     [CriterioAgrupacion]  NVARCHAR(20)   NULL,
     [Observaciones]       NVARCHAR(200)  NULL,
-    [RutaXml]             NVARCHAR(255)  NULL,
-    [RutaPdf]             NVARCHAR(255)  NULL,
-    [FechaCreacion]       DATETIME2(0)  NOT NULL,
-    [FechaActualizacion]  DATETIME2(0)  NOT NULL,
+    [RutaXml]                NVARCHAR(255)  NULL,
+    [RutaPdf]                NVARCHAR(255)  NULL,
+    [NumeroFacturaRecibida]  NVARCHAR(60)   NULL,
+    [FechaCreacion]          DATETIME2(0)  NOT NULL,
+    [FechaActualizacion]     DATETIME2(0)  NOT NULL,
     PRIMARY KEY ([IdFactura])
 );
 GO
