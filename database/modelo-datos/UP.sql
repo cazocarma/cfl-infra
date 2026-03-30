@@ -777,7 +777,6 @@ GO
 ============================================================ */
 CREATE TABLE [cfl].[PlanillaSap] (
     [IdPlanillaSap]         BIGINT NOT NULL IDENTITY UNIQUE,
-    [IdFactura]             BIGINT        NOT NULL,
     [FechaDocumento]        DATE          NOT NULL,
     [FechaContabilizacion]  DATE          NOT NULL,
     [GlosaCabecera]         NVARCHAR(100) NOT NULL,
@@ -799,12 +798,23 @@ CREATE TABLE [cfl].[PlanillaSap] (
 );
 GO
 
-CREATE INDEX [IX_PlanillaSap_IdFactura]
-ON [cfl].[PlanillaSap] ([IdFactura]);
-GO
-
 CREATE INDEX [IX_PlanillaSap_Estado]
 ON [cfl].[PlanillaSap] ([Estado], [FechaCreacion] DESC);
+GO
+
+/* ============================================================
+   TABLA: cfl.PlanillaSapFactura  (puente N:N planilla ↔ factura)
+============================================================ */
+CREATE TABLE [cfl].[PlanillaSapFactura] (
+    [IdPlanillaSapFactura]  BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdPlanillaSap]         BIGINT NOT NULL,
+    [IdFactura]             BIGINT NOT NULL,
+    PRIMARY KEY ([IdPlanillaSapFactura])
+);
+GO
+
+CREATE UNIQUE INDEX [UQ_PlanillaSapFactura]
+ON [cfl].[PlanillaSapFactura] ([IdPlanillaSap], [IdFactura]);
 GO
 
 /* ============================================================
@@ -814,10 +824,10 @@ CREATE TABLE [cfl].[PlanillaSapDocumento] (
     [IdPlanillaSapDocumento] BIGINT NOT NULL IDENTITY UNIQUE,
     [IdPlanillaSap]          BIGINT        NOT NULL,
     [NumeroDocumento]        INT           NOT NULL,
-    [IdCentroCosto]          BIGINT        NULL,
     [CentroCostoCodigo]      NVARCHAR(20)  NULL,
-    [IdCuentaMayor]          BIGINT        NULL,
     [CuentaMayorCodigo]      NVARCHAR(30)  NULL,
+    [Referencia]             NVARCHAR(60)  NULL,
+    [NumeroPreFactura]       NVARCHAR(40)  NULL,
     [MontoDebito]            DECIMAL(18,2) NOT NULL DEFAULT 0,
     [TotalLineas]            INT           NOT NULL DEFAULT 0,
     PRIMARY KEY ([IdPlanillaSapDocumento])
@@ -1239,9 +1249,16 @@ FOREIGN KEY ([IdEmpresa]) REFERENCES [cfl].[EmpresaTransporte] ([IdEmpresa])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
--- PlanillaSap → CabeceraFactura
-ALTER TABLE [cfl].[PlanillaSap]
-ADD CONSTRAINT [FK_PlanillaSap_CabeceraFactura]
+-- PlanillaSapFactura → PlanillaSap
+ALTER TABLE [cfl].[PlanillaSapFactura]
+ADD CONSTRAINT [FK_PlanillaSapFactura_PlanillaSap]
+FOREIGN KEY ([IdPlanillaSap]) REFERENCES [cfl].[PlanillaSap] ([IdPlanillaSap])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- PlanillaSapFactura → CabeceraFactura
+ALTER TABLE [cfl].[PlanillaSapFactura]
+ADD CONSTRAINT [FK_PlanillaSapFactura_CabeceraFactura]
 FOREIGN KEY ([IdFactura]) REFERENCES [cfl].[CabeceraFactura] ([IdFactura])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
