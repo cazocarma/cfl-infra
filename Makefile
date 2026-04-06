@@ -28,7 +28,7 @@ SHELL          := /bin/bash
 
 # --- Phony targets ------------------------------------------------------------
 .PHONY: help
-.PHONY: env-check repo-check doctor
+.PHONY: env-check repo-check net-check doctor
 .PHONY: build-front build-back build-all rebuild
 .PHONY: up up-build down down-v stop start restart restart-front restart-back
 .PHONY: ps logs logs-front logs-back
@@ -105,6 +105,12 @@ env-check:
 		exit 1; \
 	fi
 
+net-check:
+	@docker network inspect greenvic-cfl_default > /dev/null 2>&1 || \
+		(echo "ERROR: La red greenvic-cfl_default no existe. Levanta el stack platform primero." && exit 1)
+	@docker network inspect platform_identity > /dev/null 2>&1 || \
+		(echo "ERROR: La red platform_identity no existe. Levanta el stack platform primero." && exit 1)
+
 repo-check:
 	@if [ ! -d "$(FRONT_DIR)" ]; then \
 		echo "ERROR: No existe repo front en $(FRONT_DIR)"; \
@@ -159,10 +165,10 @@ rebuild: env-check repo-check
 # =============================================================================
 # Run
 # =============================================================================
-up: env-check repo-check
+up: env-check repo-check net-check
 	$(COMPOSE_NODE) up -d
 
-up-build: env-check repo-check
+up-build: env-check repo-check net-check
 	$(COMPOSE_NODE) up -d --build
 
 down: env-check repo-check

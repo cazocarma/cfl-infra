@@ -2,51 +2,84 @@
 
 Infraestructura local de desarrollo para `greenvic-control-fletes`.
 
+## Requisitos previos
+
+- Docker y Docker Compose
+- Stack **greenvic-platform** levantado (provee las redes `greenvic-cfl_default` y `platform_identity`)
+- Repos clonados en `/opt/cfl/repos/`: `cfl-front-ng`, `cfl-back`, `cfl-infra`
+
 ## Fuente de entorno
 
 - Archivo real: `cfl-infra/.env`
 - Plantilla: `cfl-infra/.env.example`
-- `cfl-back` y `cfl-back-go` consumen este archivo; no usan `.env` propios
+- `cfl-back` consume este archivo; no usa `.env` propio
+
+## Arquitectura de red
+
+El stack CFL se conecta a redes externas gestionadas por `greenvic-platform`:
+
+| Red                    | Tipo     | Proposito                              |
+|------------------------|----------|----------------------------------------|
+| `greenvic-cfl_default` | externa  | Red principal del stack CFL            |
+| `platform_identity`    | externa  | Comunicacion con Keycloak (authn/authz)|
+| `greenvic-cfl_egress`  | interna  | Salida controlada a servicios externos |
+
+> El gateway (NGINX) fue delegado a `greenvic-platform`. CFL ya no levanta su propio reverse proxy.
 
 ## Flujo recomendado
 
-Desde la raiz del monorepo:
-
 ```bash
-make env-check
-make up-node
-make up-node-db
-make up-go
-make up-go-db
-make down
-make down-v
-```
-
-## Perfiles disponibles
-
-- `node`: backend Node
-- `go`: backend Go
-
-## Equivalentes docker compose
-
-Desde `cfl-infra/`:
-
-```bash
-docker compose --profile node up -d --build
-docker compose --profile go up -d --build
+make doctor         # Verifica docker, compose, .env, repos
+make up-build       # Levanta el stack reconstruyendo imagenes
+make logs           # Sigue logs de todos los servicios
+make down           # Baja el stack
 ```
 
 ## Servicios
 
-- `gateway`: expone `http://localhost`
-- `front-ng`: frontend Angular
-- `back`: backend Node
-- `back-go`: backend Go
+| Servicio   | Puerto | Descripcion          |
+|------------|--------|----------------------|
+| `front-ng` | 80     | Frontend Angular     |
+| `back`     | 4000   | Backend Node (perfil `node`) |
+
+## Targets del Makefile
+
+```
+Bootstrap:
+  make env-check        Verifica .env
+  make repo-check       Verifica repos esperados
+  make net-check        Verifica redes Docker externas
+  make doctor           Verifica docker, compose, .env y repos
+
+Build:
+  make build-front      Build de cfl-front-ng
+  make build-back       Build de cfl-back
+  make build-all        Build de todas las imagenes
+  make rebuild          Rebuild completo sin cache
+
+Run:
+  make up               Levanta el stack
+  make up-build         Levanta reconstruyendo
+  make down             Baja el stack
+  make down-v           Baja el stack y elimina volumenes
+
+Ops:
+  make ps               Estado de contenedores
+  make status           Estado + resumen
+  make logs             Logs de todo el stack
+  make logs-front       Logs de front-ng
+  make logs-back        Logs de back
+
+Deploy:
+  make pull             Git pull en front/back/infra
+  make deploy           Pull + up -d --build
+  make redeploy         Down + deploy
+```
 
 ## Validacion rapida
 
 ```bash
 docker compose ps
-curl http://127.0.0.1/healthz
-curl http://127.0.0.1/api/health
+curl http://127.0.0.1/healthz       # front-ng via platform gateway
+curl http://127.0.0.1/api/health    # back via platform gateway
 ```
