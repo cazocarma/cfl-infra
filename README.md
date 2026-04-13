@@ -2,225 +2,140 @@
 
 Orquestacion Docker Compose para el sistema de Control de Fletes (CFL) de Greenvic.
 
-## Arquitectura multi-ambiente
+## Arquitectura
 
-El proyecto soporta dos ambientes simultaneos en el mismo servidor:
-
-| Aspecto | PRD (produccion) | DEV (desarrollo) |
+| Aspecto | PRD | DEV |
 |---|---|---|
 | Branch | `main` | `dev` |
 | Compose project | `greenvic-cfl-prd` | `greenvic-cfl-dev` |
-| Red Docker | `greenvic-cfl-prd_default` | `greenvic-cfl-dev_default` |
 | Backend alias | `cfl-backend` | `cfl-backend-dev` |
 | Frontend alias | `cfl-frontend` | `cfl-frontend-dev` |
-| Puerto platform | 80 | 83 |
-| Acceso | `http://<IP>` | `http://<IP>:83` |
+| Puerto (via platform nginx) | 80 | 83 |
 
 Cada ambiente corre desde su propio directorio:
 
 ```
 /opt/cfl/
-├── prd/repos/          ← branch main, .env con CFL_ENV=prd
-│   ├── cfl-infra/      ← este repo (Makefile, docker-compose, .env)
-│   ├── cfl-back/
-│   └── cfl-front-ng/
-└── dev/repos/          ← branch dev, .env con CFL_ENV=dev
-    ├── cfl-infra/
-    ├── cfl-back/
-    └── cfl-front-ng/
+  prd/repos/         branch main, CFL_ENV=prd
+    cfl-infra/       docker-compose, .env, database scripts
+    cfl-back/
+    cfl-front-ng/
+  dev/repos/         branch dev, CFL_ENV=dev (o local)
+    cfl-infra/
+    cfl-back/
+    cfl-front-ng/
 ```
 
-## Requisitos previos
-
-- Docker y Docker Compose
-- Stack **greenvic-platform** levantado (provee las redes `greenvic-cfl-{prd|dev}_default` y `platform_identity`)
-- Repos clonados en la estructura de directorios descrita arriba
-
-## Setup inicial
+## Setup
 
 ### 1. Clonar repos
 
 ```bash
-# PRD
 mkdir -p /opt/cfl/prd/repos && cd /opt/cfl/prd/repos
-git clone -b main <url>/cfl-infra.git
-git clone -b main <url>/cfl-back.git
-git clone -b main <url>/cfl-front-ng.git
-
-# DEV
-mkdir -p /opt/cfl/dev/repos && cd /opt/cfl/dev/repos
-git clone -b dev <url>/cfl-infra.git
-git clone -b dev <url>/cfl-back.git
-git clone -b dev <url>/cfl-front-ng.git
+git clone -b main git@github.com:cazocarma/cfl-infra.git
+git clone -b main git@github.com:cazocarma/cfl-back.git
+git clone -b main git@github.com:cazocarma/cfl-front-ng.git
 ```
 
-### 2. Configurar variables de entorno
+### 2. Configurar entorno
 
 ```bash
 cd /opt/cfl/prd/repos/cfl-infra
-make setup-env ENV=prd
-# Edita .env con los valores reales (secretos, passwords, IPs)
-
-cd /opt/cfl/dev/repos/cfl-infra
-make setup-env ENV=dev
-# Edita .env con los valores de desarrollo
+cp .env.example .env
+# Editar .env con valores reales (secrets, passwords, IPs)
 ```
 
-### 3. Verificar prerequisitos
-
-```bash
-make doctor
-```
-
-Valida: Docker, .env, repos, redes Docker, y branches.
-
-### 4. Levantar
+### 3. Levantar
 
 ```bash
 make up          # Levanta el stack
 make up-build    # Levanta reconstruyendo imagenes
 ```
 
-## Fuente de entorno
+## Variables de entorno
 
-- Archivo real: `cfl-infra/.env` (gitignoreado)
-- Plantillas: `.env.prd.example`, `.env.dev.example`
-- `cfl-back` consume este archivo; no usa `.env` propio
+Archivo: `cfl-infra/.env` (gitignoreado). Plantilla: `.env.example`.
 
-## Variable `CFL_ENV`
+| Variable | Descripcion |
+|---|---|
+| `CFL_ENV` | Ambiente: `prd` o `dev` |
+| `CFL_BACKEND_ALIAS` | Alias Docker del backend |
+| `CFL_FRONTEND_ALIAS` | Alias Docker del frontend |
+| `NODE_ENV` | `production` o `development` |
+| `PORT` | Puerto del backend (4000) |
+| `CORS_ORIGIN` | Origen CORS |
+| `AUTHN_JWT_SECRET` | Secret JWT (min 32 bytes) |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | Conexion SQL Server |
+| `SAP_ETL_BASE_URL` / `SAP_ETL_API_TOKEN` | Integracion SAP ETL |
 
-La variable `CFL_ENV` en `.env` controla todo el aislamiento:
+## Deploy automatico
 
-- **Compose project name**: `greenvic-cfl-${CFL_ENV}`
-- **Redes Docker**: `greenvic-cfl-${CFL_ENV}_default`
-- **Imagen frontend**: `cfl-front-ng:${CFL_ENV}`
-- **Volumenes**: auto-prefijados por compose project name
+El deploy a PRD se ejecuta automaticamente al hacer merge a `main` en GitHub:
 
-Valores permitidos: `prd`, `dev`.
+1. GitHub envia webhook a `http://<IP>/webhook/github`
+2. El servicio `greenvic-deployer` (en platform) valida la firma HMAC
+3. Ejecuta `git pull` en el repo afectado dentro de `/opt/cfl/prd/repos/`
+4. Rebuild + restart del servicio Docker
+5. Smoke tests (health checks)
 
-## Arquitectura de red
+Configuracion del webhook: ver `platform/deployer/deploy-config.json`.
 
-El stack CFL se conecta a redes externas gestionadas por `greenvic-platform`:
-
-| Red | Tipo | Proposito |
-|---|---|---|
-| `greenvic-cfl-{env}_default` | externa | Red principal del stack CFL |
-| `platform_identity` | externa | Comunicacion con Keycloak (authn/authz) |
-| `greenvic-cfl-{env}_egress` | interna | Salida controlada a servicios externos |
-
-> El gateway (NGINX) fue delegado a `greenvic-platform`. CFL no levanta su propio reverse proxy.
-
-## Operacion diaria
-
-```bash
-make ps          # Estado de contenedores
-make logs        # Logs de todo el stack
-make logs-cfl-front   # Logs solo del frontend
-make logs-cfl-back    # Logs solo del backend
-make restart     # Reinicia todo
-make env-info    # Muestra ambiente, red y branches actuales
-```
-
-## Deploy
+### Deploy manual
 
 ```bash
+cd /opt/cfl/prd/repos/cfl-infra
 make deploy      # git pull + build + up (valida branch)
-make redeploy    # down + build + up (valida branch)
+make redeploy    # down + build + up
 ```
 
-El Makefile valida automaticamente que las ramas de los repos coincidan con `CFL_ENV` antes de hacer deploy.
+## Base de datos
 
-## Release: merge dev a main
+Esquema: `[cfl]` en SQL Server. Scripts en `database/modelo-datos/`:
 
-1. Verificar que DEV funciona correctamente en `http://<IP>:83`
-2. En cada repo, mergear `dev` a `main`:
-   ```bash
-   cd /opt/cfl/dev/repos/cfl-back
-   git checkout main && git merge dev && git push
+| Archivo | Descripcion |
+|---|---|
+| `UP.sql` | Definicion completa del schema (52 tablas, vistas, indices, FKs) |
+| `seed/04_seguridad.sql` | Roles, permisos, usuarios seed (idempotente via MERGE) |
 
-   cd /opt/cfl/dev/repos/cfl-front-ng
-   git checkout main && git merge dev && git push
+### Roles y permisos
 
-   cd /opt/cfl/dev/repos/cfl-infra
-   git checkout main && git merge dev && git push
-   ```
-3. Desplegar en PRD:
-   ```bash
-   cd /opt/cfl/prd/repos/cfl-infra
-   make deploy
-   ```
-
-Los merges son limpios porque todos los archivos committeados son identicos entre ramas. Las diferencias viven solo en `.env` (gitignoreado).
+| Rol | Permisos | Descripcion |
+|---|---|---|
+| Administrador | 33 (todos) | Acceso total |
+| Autorizador | 27 | Operaciones + mantenedores parcial |
+| Ingresador | 11 | Fletes + lectura facturas/planillas/mantenedores |
 
 ## Servicios
 
-| Servicio | Puerto | Descripcion |
+| Servicio | Puerto interno | Descripcion |
 |---|---|---|
-| `front-ng` | 3000 | Frontend Angular CFL |
-| `back` | 4000 | Backend Node (perfil `node`) |
+| `front-ng` | 3000 | Frontend Angular |
+| `back` | 4000 | Backend Node.js/Express |
 
-## Targets del Makefile
+## Red
+
+| Red | Proposito |
+|---|---|
+| `greenvic-cfl-{env}_default` | Red principal del stack |
+| `platform_identity` | Comunicacion con Keycloak |
+| `greenvic-cfl-{env}_egress` | Salida a servicios externos (SAP ETL) |
+
+## Makefile
 
 | Target | Descripcion |
 |---|---|
-| `setup-env ENV=prd\|dev` | Copia .env.{ENV}.example a .env |
-| `env-check` | Verifica que .env existe |
-| `repo-check` | Verifica que los repos existen |
-| `net-check` | Verifica que las redes Docker existen |
-| `branch-check` | Verifica que las ramas coincidan con CFL_ENV |
-| `doctor` | Verificacion completa del entorno |
-| `env-info` | Muestra ambiente, red y branches |
-| `build-cfl-front` | Build de cfl-front-ng |
-| `build-cfl-back` | Build de cfl-back |
-| `build-all` | Build de todas las imagenes |
-| `rebuild` | Rebuild sin cache |
-| `up` | Levanta el stack |
-| `up-build` | Levanta reconstruyendo |
-| `down` | Baja el stack |
-| `down-v` | Baja el stack y elimina volumenes |
-| `stop` / `start` | Detiene / inicia servicios |
-| `restart` | Reinicia todo |
+| `up` / `up-build` | Levantar stack |
+| `down` / `down-v` | Bajar stack (con/sin volumenes) |
+| `deploy` / `redeploy` | Deploy (pull+build+up) |
 | `ps` / `status` | Estado de contenedores |
-| `logs` | Logs de todo el stack |
-| `logs-cfl-front` / `logs-cfl-back` | Logs por servicio |
-| `config` | Render de docker compose |
-| `pull` | Git pull en los 3 repos |
-| `deploy` | Pull + build + up |
-| `redeploy` | Down + build + up |
+| `logs` / `logs-cfl-front` / `logs-cfl-back` | Logs |
+| `doctor` | Verificacion completa del entorno |
+| `env-info` | Muestra ambiente actual |
 
-## Validacion rapida
+## Validacion
 
 ```bash
 make doctor
-make env-info
-curl http://127.0.0.1/healthz       # cfl-front-ng via platform gateway (PRD)
-curl http://127.0.0.1:83/healthz    # cfl-front-ng via platform gateway (DEV)
-curl http://127.0.0.1/api/health    # cfl-back via platform gateway (PRD)
-```
-
-## Troubleshooting
-
-### "La red greenvic-cfl-prd_default no existe"
-
-Platform debe estar corriendo antes que CFL. Las redes las crea el stack platform:
-
-```bash
-cd /opt/platform && docker compose up -d
-```
-
-### "WARNING: repo esta en branch 'dev' (esperado 'main')"
-
-El branch del repo no coincide con `CFL_ENV`. Cambia al branch correcto:
-
-```bash
-cd <repo> && git checkout main   # para CFL_ENV=prd
-cd <repo> && git checkout dev    # para CFL_ENV=dev
-```
-
-### Contenedores no aparecen
-
-Verifica que el .env tenga `CFL_ENV` definido:
-
-```bash
-make env-info
+curl http://127.0.0.1/healthz       # frontend PRD
+curl http://127.0.0.1/api/health    # backend PRD
 ```

@@ -59,6 +59,7 @@ WHEN NOT MATCHED THEN
   (N'excepciones', N'manage', N'excepciones.gestionar', N'Gestionar excepciones', 1),
   (N'facturas', N'reconcile', N'facturas.conciliar', N'Conciliar factura con flete', 1),
   (N'facturas', N'edit', N'facturas.editar', N'Registrar/editar factura', 1),
+  (N'facturas', N'view', N'facturas.ver', N'Consultar listado de facturas', 1),
   (N'fletes', N'cancel', N'fletes.anular', N'Anular flete', 1),
   (N'fletes', N'view', N'fletes.candidatos.view', N'Ver candidatos a flete', 1),
   (N'fletes', N'create', N'fletes.crear', N'Crear flete desde candidato', 1),
@@ -84,6 +85,7 @@ WHEN NOT MATCHED THEN
   (N'mantenedores', N'edit', N'mantenedores.edit.usuarios', N'Editar mantenedor usuarios', 1),
   (N'mantenedores', N'view', N'mantenedores.view', N'Consultar mantenedores', 1),
   (N'planillas', N'generate', N'planillas.generar', N'Generar/reemitir planilla SAP', 1),
+  (N'planillas', N'view', N'planillas.ver', N'Consultar listado de planillas SAP', 1),
   (N'reportes', N'view', N'reportes.view', N'Visualizar dashboard y reportes', 1),
   (N'usuarios', N'admin', N'usuarios.permisos.admin', N'Administrar usuarios/roles/permisos', 1)
   ) v(recurso, accion, clave, descripcion, activo)
@@ -156,6 +158,8 @@ WHEN NOT MATCHED THEN
   (N'Administrador', N'planillas.generar'),
   (N'Administrador', N'reportes.view'),
   (N'Administrador', N'usuarios.permisos.admin'),
+  (N'Administrador', N'facturas.ver'),
+  (N'Administrador', N'planillas.ver'),
   (N'Autorizador', N'excepciones.autorizar'),
   (N'Autorizador', N'excepciones.gestionar'),
   (N'Autorizador', N'facturas.conciliar'),
@@ -180,9 +184,11 @@ WHEN NOT MATCHED THEN
   (N'Autorizador', N'mantenedores.edit.tipos-camion'),
   (N'Autorizador', N'mantenedores.view'),
   (N'Autorizador', N'planillas.generar'),
+  (N'Autorizador', N'planillas.ver'),
+  (N'Autorizador', N'facturas.ver'),
   (N'Autorizador', N'reportes.view'),
   (N'Ingresador', N'excepciones.gestionar'),
-  (N'Ingresador', N'facturas.editar'),
+  (N'Ingresador', N'facturas.ver'),
   (N'Ingresador', N'fletes.candidatos.view'),
   (N'Ingresador', N'fletes.crear'),
   (N'Ingresador', N'fletes.editar'),
@@ -190,6 +196,7 @@ WHEN NOT MATCHED THEN
   (N'Ingresador', N'fletes.sap.etl.ejecutar'),
   (N'Ingresador', N'fletes.sap.etl.ver'),
   (N'Ingresador', N'mantenedores.view'),
+  (N'Ingresador', N'planillas.ver'),
   (N'Ingresador', N'reportes.view')
   ) v(rol_nombre, permiso_clave)
 ), resolved AS (

@@ -349,6 +349,377 @@ CREATE INDEX [IX_StgLips_Ejecucion]
 ON [cfl].[StgLips] ([IdEjecucion]);
 GO
 
+/* ============================================================
+   TABLA: cfl.RomanaCabeceraRaw
+============================================================ */
+CREATE TABLE [cfl].[RomanaCabeceraRaw] (
+    [IdRomanaCabeceraRaw]   BIGINT IDENTITY UNIQUE,
+    [IdEjecucion]           UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]       DATETIME2(0)  NOT NULL,
+    [SistemaFuente]         NVARCHAR(50)  NOT NULL,
+    [HashFila]              BINARY(32)    NOT NULL,
+    [EstadoFila]            NVARCHAR(20)  NOT NULL,
+    [FechaCreacion]         DATETIME2(0)  NOT NULL,
+    [IdRomana]              NVARCHAR(20)  NOT NULL,
+    [NumeroPartida]         NVARCHAR(20)  NULL,
+    [GuiaDespacho]          NVARCHAR(30)  NULL,
+    [TipoDocumento]         NVARCHAR(10)  NULL,
+    [TipoDocumentoTexto]    NVARCHAR(40)  NULL,
+    [EstadoRomana]          NVARCHAR(10)  NULL,
+    [EstadoRomanaTexto]     NVARCHAR(40)  NULL,
+    [Patente]               NVARCHAR(20)  NULL,
+    [Carro]                 NVARCHAR(20)  NULL,
+    [Conductor]             NVARCHAR(80)  NULL,
+    [CreadoPor]             NVARCHAR(12)  NULL,
+    [CreadoPorNombre]       NVARCHAR(80)  NULL,
+    [FechaCreacionSap]      DATE          NULL,
+    [FechaModificacionSap]  DATE          NULL,
+    [OrdenCompra]           NVARCHAR(20)  NULL,
+    [CodigoProductor]       NVARCHAR(20)  NULL,
+    [Centro]                NVARCHAR(10)  NULL,
+    [CentroNombre]          NVARCHAR(40)  NULL,
+    [PlantaDestino]         NVARCHAR(10)  NULL,
+    [PlantaDestinoNombre]   NVARCHAR(40)  NULL,
+    [AlmacenDestino]        NVARCHAR(10)  NULL,
+    [AlmacenDestinoNombre]  NVARCHAR(40)  NULL,
+    [Temporada]             NVARCHAR(10)  NULL,
+    [CSG]                   NVARCHAR(20)  NULL,
+    [GuiaAlterna]           NVARCHAR(30)  NULL,
+    [ProductorDescripcion]  NVARCHAR(80)  NULL,
+    [ProductorDireccion]    NVARCHAR(150) NULL,
+    [ProductorComuna]       NVARCHAR(60)  NULL,
+    [ProductorProvincia]    NVARCHAR(60)  NULL,
+    [PeticionBorrado]       BIT NOT NULL CONSTRAINT [DF_RomanaCabeceraRaw_PeticionBorrado] DEFAULT(0),
+    [ActualizadoPor]        NVARCHAR(12)  NULL,
+    [ActualizadoPorNombre]  NVARCHAR(80)  NULL,
+    PRIMARY KEY ([IdRomanaCabeceraRaw])
+);
+GO
+
+CREATE INDEX [IX_RomanaCabeceraRaw_IdEjecucion]
+ON [cfl].[RomanaCabeceraRaw] ([IdEjecucion]);
+GO
+
+CREATE INDEX [IX_RomanaCabeceraRaw_BkFecha]
+ON [cfl].[RomanaCabeceraRaw] ([SistemaFuente], [NumeroPartida], [GuiaDespacho], [FechaExtraccion]);
+GO
+
+CREATE UNIQUE INDEX [UQ_RomanaCabeceraRaw_BkHash]
+ON [cfl].[RomanaCabeceraRaw] ([SistemaFuente], [NumeroPartida], [GuiaDespacho], [HashFila]);
+GO
+
+/* ============================================================
+   TABLA: cfl.RomanaDetalleRaw
+============================================================ */
+CREATE TABLE [cfl].[RomanaDetalleRaw] (
+    [IdRomanaDetalleRaw]            BIGINT IDENTITY UNIQUE,
+    [IdEjecucion]                   UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]               DATETIME2(0)  NOT NULL,
+    [SistemaFuente]                 NVARCHAR(50)  NOT NULL,
+    [HashFila]                      BINARY(32)    NOT NULL,
+    [EstadoFila]                    NVARCHAR(20)  NOT NULL,
+    [FechaCreacion]                 DATETIME2(0)  NOT NULL,
+    [NumeroPartida]                 NVARCHAR(20)  NOT NULL,
+    [GuiaDespacho]                  NVARCHAR(30)  NOT NULL,
+    [Posicion]                      NVARCHAR(10)  NOT NULL,
+    [Material]                      NVARCHAR(40)  NULL,
+    [MaterialDescripcion]           NVARCHAR(40)  NULL,
+    [Lote]                          NVARCHAR(20)  NULL,
+    [PesoReal]                      DECIMAL(15,3) NOT NULL CONSTRAINT [DF_RomanaDetalleRaw_PesoReal] DEFAULT(0),
+    [UnidadMedida]                  NVARCHAR(5)   NULL,
+    [Envase]                        NVARCHAR(20)  NULL,
+    [EnvaseDescripcion]             NVARCHAR(40)  NULL,
+    [SubEnvase]                     NVARCHAR(20)  NULL,
+    [SubEnvaseDescripcion]          NVARCHAR(40)  NULL,
+    [PosicionOrdenCompra]           NVARCHAR(10)  NULL,
+    [CodigoEspecie]                 NVARCHAR(10)  NULL,
+    [EspecieDescripcion]            NVARCHAR(40)  NULL,
+    [CodigoGrupoVariedad]           NVARCHAR(10)  NULL,
+    [GrupoVariedadDescripcion]      NVARCHAR(40)  NULL,
+    [CodigoManejo]                  NVARCHAR(10)  NULL,
+    [ManejoDescripcion]             NVARCHAR(40)  NULL,
+    [Centro]                        NVARCHAR(10)  NULL,
+    [Almacen]                       NVARCHAR(10)  NULL,
+    [AlmacenDescripcion]            NVARCHAR(40)  NULL,
+    [VariedadAgronomica]            NVARCHAR(10)  NULL,
+    [VariedadAgronomicaDescripcion] NVARCHAR(40)  NULL,
+    [TipoVariedad]                  NVARCHAR(10)  NULL,
+    [TipoVariedadDescripcion]       NVARCHAR(40)  NULL,
+    [TipoFrio]                      NVARCHAR(10)  NULL,
+    [TipoFrioDescripcion]           NVARCHAR(40)  NULL,
+    [Destino]                       NVARCHAR(10)  NULL,
+    [DestinoDescripcion]            NVARCHAR(40)  NULL,
+    [LineaProduccion]               NVARCHAR(20)  NULL,
+    [FechaCosecha]                  DATE          NULL,
+    [PSA]                           NVARCHAR(20)  NULL,
+    [GGN]                           NVARCHAR(20)  NULL,
+    [SDP]                           NVARCHAR(10)  NULL,
+    [UnidadMadurez]                 NVARCHAR(20)  NULL,
+    [Cuartel]                       NVARCHAR(20)  NULL,
+    [ExportadorMP]                  NVARCHAR(20)  NULL,
+    [ExportadorMPDescripcion]       NVARCHAR(80)  NULL,
+    [PesoPromedioEnvase]            NVARCHAR(20)  NULL,
+    [PesoRealEnvase]                NVARCHAR(20)  NULL,
+    [CantidadSubEnvaseL]            DECIMAL(15,3) NULL,
+    [PesoEnvase]                    DECIMAL(15,3) NULL,
+    [PesoSubEnvase]                 DECIMAL(15,3) NULL,
+    [CantidadSubEnvaseV]            DECIMAL(15,3) NULL,
+    PRIMARY KEY ([IdRomanaDetalleRaw])
+);
+GO
+
+CREATE INDEX [IX_RomanaDetalleRaw_IdEjecucion]
+ON [cfl].[RomanaDetalleRaw] ([IdEjecucion]);
+GO
+
+CREATE INDEX [IX_RomanaDetalleRaw_BkFecha]
+ON [cfl].[RomanaDetalleRaw] ([SistemaFuente], [NumeroPartida], [GuiaDespacho], [Posicion], [FechaExtraccion]);
+GO
+
+CREATE UNIQUE INDEX [UQ_RomanaDetalleRaw_BkHash]
+ON [cfl].[RomanaDetalleRaw] ([SistemaFuente], [NumeroPartida], [GuiaDespacho], [Posicion], [HashFila]);
+GO
+
+/* ============================================================
+   TABLAS: staging permanentes para pipeline Romana on-demand
+============================================================ */
+
+CREATE TABLE [cfl].[StgRomanaCabecera] (
+    [IdEjecucion]           UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]       DATETIME2(0)  NOT NULL,
+    [SistemaFuente]         NVARCHAR(50)  NOT NULL,
+    [HashFila]              BINARY(32)    NOT NULL,
+    [EstadoFila]            NVARCHAR(20)  NOT NULL,
+    [FechaCreacion]         DATETIME2(0)  NOT NULL,
+    [IdRomana]              NVARCHAR(20)  NOT NULL,
+    [NumeroPartida]         NVARCHAR(20)  NULL,
+    [GuiaDespacho]          NVARCHAR(30)  NULL,
+    [TipoDocumento]         NVARCHAR(10)  NULL,
+    [TipoDocumentoTexto]    NVARCHAR(40)  NULL,
+    [EstadoRomana]          NVARCHAR(10)  NULL,
+    [EstadoRomanaTexto]     NVARCHAR(40)  NULL,
+    [Patente]               NVARCHAR(20)  NULL,
+    [Carro]                 NVARCHAR(20)  NULL,
+    [Conductor]             NVARCHAR(80)  NULL,
+    [CreadoPor]             NVARCHAR(12)  NULL,
+    [CreadoPorNombre]       NVARCHAR(80)  NULL,
+    [FechaCreacionSap]      DATE          NULL,
+    [FechaModificacionSap]  DATE          NULL,
+    [OrdenCompra]           NVARCHAR(20)  NULL,
+    [CodigoProductor]       NVARCHAR(20)  NULL,
+    [Centro]                NVARCHAR(10)  NULL,
+    [CentroNombre]          NVARCHAR(40)  NULL,
+    [PlantaDestino]         NVARCHAR(10)  NULL,
+    [PlantaDestinoNombre]   NVARCHAR(40)  NULL,
+    [AlmacenDestino]        NVARCHAR(10)  NULL,
+    [AlmacenDestinoNombre]  NVARCHAR(40)  NULL,
+    [Temporada]             NVARCHAR(10)  NULL,
+    [CSG]                   NVARCHAR(20)  NULL,
+    [GuiaAlterna]           NVARCHAR(30)  NULL,
+    [ProductorDescripcion]  NVARCHAR(80)  NULL,
+    [ProductorDireccion]    NVARCHAR(150) NULL,
+    [ProductorComuna]       NVARCHAR(60)  NULL,
+    [ProductorProvincia]    NVARCHAR(60)  NULL,
+    [PeticionBorrado]       BIT NOT NULL CONSTRAINT [DF_StgRomanaCabecera_PeticionBorrado] DEFAULT(0),
+    [ActualizadoPor]        NVARCHAR(12)  NULL,
+    [ActualizadoPorNombre]  NVARCHAR(80)  NULL
+);
+GO
+
+CREATE INDEX [IX_StgRomanaCabecera_Ejecucion]
+ON [cfl].[StgRomanaCabecera] ([IdEjecucion]);
+GO
+
+CREATE TABLE [cfl].[StgRomanaDetalle] (
+    [IdEjecucion]                   UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]               DATETIME2(0)  NOT NULL,
+    [SistemaFuente]                 NVARCHAR(50)  NOT NULL,
+    [HashFila]                      BINARY(32)    NOT NULL,
+    [EstadoFila]                    NVARCHAR(20)  NOT NULL,
+    [FechaCreacion]                 DATETIME2(0)  NOT NULL,
+    [NumeroPartida]                 NVARCHAR(20)  NOT NULL,
+    [GuiaDespacho]                  NVARCHAR(30)  NOT NULL,
+    [Posicion]                      NVARCHAR(10)  NOT NULL,
+    [Material]                      NVARCHAR(40)  NULL,
+    [MaterialDescripcion]           NVARCHAR(40)  NULL,
+    [Lote]                          NVARCHAR(20)  NULL,
+    [PesoReal]                      DECIMAL(15,3) NOT NULL CONSTRAINT [DF_StgRomanaDetalle_PesoReal] DEFAULT(0),
+    [UnidadMedida]                  NVARCHAR(5)   NULL,
+    [Envase]                        NVARCHAR(20)  NULL,
+    [EnvaseDescripcion]             NVARCHAR(40)  NULL,
+    [SubEnvase]                     NVARCHAR(20)  NULL,
+    [SubEnvaseDescripcion]          NVARCHAR(40)  NULL,
+    [PosicionOrdenCompra]           NVARCHAR(10)  NULL,
+    [CodigoEspecie]                 NVARCHAR(10)  NULL,
+    [EspecieDescripcion]            NVARCHAR(40)  NULL,
+    [CodigoGrupoVariedad]           NVARCHAR(10)  NULL,
+    [GrupoVariedadDescripcion]      NVARCHAR(40)  NULL,
+    [CodigoManejo]                  NVARCHAR(10)  NULL,
+    [ManejoDescripcion]             NVARCHAR(40)  NULL,
+    [Centro]                        NVARCHAR(10)  NULL,
+    [Almacen]                       NVARCHAR(10)  NULL,
+    [AlmacenDescripcion]            NVARCHAR(40)  NULL,
+    [VariedadAgronomica]            NVARCHAR(10)  NULL,
+    [VariedadAgronomicaDescripcion] NVARCHAR(40)  NULL,
+    [TipoVariedad]                  NVARCHAR(10)  NULL,
+    [TipoVariedadDescripcion]       NVARCHAR(40)  NULL,
+    [TipoFrio]                      NVARCHAR(10)  NULL,
+    [TipoFrioDescripcion]           NVARCHAR(40)  NULL,
+    [Destino]                       NVARCHAR(10)  NULL,
+    [DestinoDescripcion]            NVARCHAR(40)  NULL,
+    [LineaProduccion]               NVARCHAR(20)  NULL,
+    [FechaCosecha]                  DATE          NULL,
+    [PSA]                           NVARCHAR(20)  NULL,
+    [GGN]                           NVARCHAR(20)  NULL,
+    [SDP]                           NVARCHAR(10)  NULL,
+    [UnidadMadurez]                 NVARCHAR(20)  NULL,
+    [Cuartel]                       NVARCHAR(20)  NULL,
+    [ExportadorMP]                  NVARCHAR(20)  NULL,
+    [ExportadorMPDescripcion]       NVARCHAR(80)  NULL,
+    [PesoPromedioEnvase]            NVARCHAR(20)  NULL,
+    [PesoRealEnvase]                NVARCHAR(20)  NULL,
+    [CantidadSubEnvaseL]            DECIMAL(15,3) NULL,
+    [PesoEnvase]                    DECIMAL(15,3) NULL,
+    [PesoSubEnvase]                 DECIMAL(15,3) NULL,
+    [CantidadSubEnvaseV]            DECIMAL(15,3) NULL
+);
+GO
+
+CREATE INDEX [IX_StgRomanaDetalle_Ejecucion]
+ON [cfl].[StgRomanaDetalle] ([IdEjecucion]);
+GO
+
+/* ============================================================
+   TABLA: cfl.RomanaEntrega
+============================================================ */
+CREATE TABLE [cfl].[RomanaEntrega] (
+    [IdRomanaEntrega]               BIGINT NOT NULL IDENTITY UNIQUE,
+    [NumeroPartida]                 NVARCHAR(20)      NOT NULL,
+    [GuiaDespacho]                  NVARCHAR(30)      NOT NULL,
+    [SistemaFuente]                 NVARCHAR(50)      NOT NULL,
+    [FechaCreacion]                 DATETIME2(0)     NOT NULL,
+    [FechaActualizacion]            DATETIME2(0)     NOT NULL,
+    [Bloqueado]                     BIT NOT NULL CONSTRAINT [DF_RomanaEntrega_Bloqueado] DEFAULT(0),
+    [FechaBloqueado]                DATETIME2(0)     NULL,
+    [CambiadoEnUltimaEjecucion]     BIT NOT NULL CONSTRAINT [DF_RomanaEntrega_CambiadoEnUltimaEjecucion] DEFAULT(0),
+    [FechaUltimoCambio]             DATETIME2(0)     NULL,
+    [TipoUltimoCambio]              NVARCHAR(20)      NULL,
+    [IdEjecucionUltimaVista]        UNIQUEIDENTIFIER NULL,
+    [FechaUltimaVista]              DATETIME2(0)     NULL,
+    [IdEjecucionUltimoCambio]       UNIQUEIDENTIFIER NULL,
+    [FechaExtraccionUltimoCambio]   DATETIME2(0)     NULL,
+    [IdUltimoCabeceraRaw]           BIGINT           NULL,
+    [HashUltimoCabeceraRaw]         BINARY(32)       NULL,
+    PRIMARY KEY ([IdRomanaEntrega])
+);
+GO
+
+CREATE UNIQUE INDEX [UQ_RomanaEntrega_Bk]
+ON [cfl].[RomanaEntrega] ([NumeroPartida], [GuiaDespacho], [SistemaFuente]);
+GO
+
+CREATE INDEX [IX_RomanaEntrega_NumeroPartida]
+ON [cfl].[RomanaEntrega] ([NumeroPartida]);
+GO
+
+CREATE INDEX [IX_RomanaEntrega_GuiaDespacho]
+ON [cfl].[RomanaEntrega] ([GuiaDespacho]);
+GO
+
+/* ============================================================
+   TABLA: cfl.RomanaEntregaHistorial
+============================================================ */
+CREATE TABLE [cfl].[RomanaEntregaHistorial] (
+    [IdRomanaEntregaHistorial] BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdRomanaEntrega]          BIGINT           NOT NULL,
+    [IdRomanaCabeceraRaw]      BIGINT           NOT NULL,
+    [IdEjecucion]              UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]          DATETIME2(0)     NOT NULL,
+    [FechaCreacion]            DATETIME2(0)     NOT NULL,
+    PRIMARY KEY ([IdRomanaEntregaHistorial])
+);
+GO
+
+CREATE INDEX [IX_RomanaEntregaHistorial_IdEntrega]
+ON [cfl].[RomanaEntregaHistorial] ([IdRomanaEntrega]);
+GO
+
+CREATE UNIQUE INDEX [UQ_RomanaEntregaHistorial_IdRaw]
+ON [cfl].[RomanaEntregaHistorial] ([IdRomanaCabeceraRaw]);
+GO
+
+/* ============================================================
+   TABLA: cfl.RomanaEntregaPosicion
+============================================================ */
+CREATE TABLE [cfl].[RomanaEntregaPosicion] (
+    [IdRomanaEntregaPosicion]       BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdRomanaEntrega]               BIGINT       NOT NULL,
+    [Posicion]                      NVARCHAR(10) NOT NULL,
+    [FechaCreacion]                 DATETIME2(0) NOT NULL,
+    [FechaActualizacion]            DATETIME2(0) NOT NULL,
+    [Estado]                        NVARCHAR(20) NOT NULL CONSTRAINT [DF_RomanaEntregaPosicion_Estado] DEFAULT('ACTIVE'),
+    [AusenteDesde]                  DATETIME2(0) NULL,
+    [CambiadoEnUltimaEjecucion]     BIT NOT NULL CONSTRAINT [DF_RomanaEntregaPosicion_CambiadoEnUltimaEjecucion] DEFAULT(0),
+    [FechaUltimoCambio]             DATETIME2(0) NULL,
+    [TipoUltimoCambio]              NVARCHAR(20) NULL,
+    [IdEjecucionUltimoCambio]       UNIQUEIDENTIFIER NULL,
+    [IdEjecucionUltimaVista]        UNIQUEIDENTIFIER NULL,
+    [FechaUltimaVista]              DATETIME2(0) NULL,
+    PRIMARY KEY ([IdRomanaEntregaPosicion])
+);
+GO
+
+CREATE UNIQUE INDEX [UQ_RomanaEntregaPosicion_Bk]
+ON [cfl].[RomanaEntregaPosicion] ([IdRomanaEntrega], [Posicion]);
+GO
+
+/* ============================================================
+   TABLA: cfl.RomanaEntregaPosicionHistorial
+============================================================ */
+CREATE TABLE [cfl].[RomanaEntregaPosicionHistorial] (
+    [IdRomanaEntregaPosicionHistorial] BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdRomanaEntregaPosicion]          BIGINT           NOT NULL,
+    [IdRomanaDetalleRaw]               BIGINT           NOT NULL,
+    [IdEjecucion]                      UNIQUEIDENTIFIER NOT NULL,
+    [FechaExtraccion]                  DATETIME2(0)     NOT NULL,
+    [FechaCreacion]                    DATETIME2(0)     NOT NULL,
+    PRIMARY KEY ([IdRomanaEntregaPosicionHistorial])
+);
+GO
+
+CREATE INDEX [IX_RomanaEntregaPosHist_IdPos]
+ON [cfl].[RomanaEntregaPosicionHistorial] ([IdRomanaEntregaPosicion]);
+GO
+
+CREATE UNIQUE INDEX [UQ_RomanaEntregaPosHist_IdRaw]
+ON [cfl].[RomanaEntregaPosicionHistorial] ([IdRomanaDetalleRaw]);
+GO
+
+/* ============================================================
+   TABLA: cfl.RomanaEntregaDescarte
+============================================================ */
+CREATE TABLE [cfl].[RomanaEntregaDescarte] (
+    [IdRomanaEntregaDescarte]  BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdRomanaEntrega]          BIGINT       NOT NULL,
+    [Activo]                   BIT NOT NULL CONSTRAINT [DF_RomanaEntregaDescarte_Activo] DEFAULT(1),
+    [Motivo]                   NVARCHAR(200) NULL,
+    [FechaCreacion]            DATETIME2(0) NOT NULL,
+    [FechaActualizacion]       DATETIME2(0) NOT NULL,
+    [CreadoPor]                BIGINT       NULL,
+    [FechaRestauracion]        DATETIME2(0) NULL,
+    [RestauradoPor]            BIGINT       NULL,
+    PRIMARY KEY ([IdRomanaEntregaDescarte])
+);
+GO
+
+CREATE UNIQUE INDEX [UQ_RomanaEntregaDescarte_IdEntrega]
+ON [cfl].[RomanaEntregaDescarte] ([IdRomanaEntrega]);
+GO
+
+CREATE INDEX [IX_RomanaEntregaDescarte_Activo]
+ON [cfl].[RomanaEntregaDescarte] ([Activo], [IdRomanaEntrega]);
+GO
+
 CREATE TABLE [cfl].[TokenBlocklist] (
     Jti          CHAR(36)     NOT NULL,
     IdUsuario    BIGINT       NOT NULL,
@@ -659,11 +1030,16 @@ CREATE TABLE [cfl].[CabeceraFlete] (
     [IdTarifa]           BIGINT        NULL,
     [IdUsuarioCreador]   BIGINT        NULL,
     [IdFactura]          BIGINT        NULL,
+    [IdEspecie]          BIGINT        NULL,
     [FechaCreacion]      DATETIME2(0)  NOT NULL,
     [FechaActualizacion] DATETIME2(0)  NOT NULL,
     PRIMARY KEY ([IdCabeceraFlete]),
     CONSTRAINT [CK_CabeceraFlete_TipoMovimiento] CHECK ([TipoMovimiento] IN ('PUSH','PULL'))
 );
+GO
+
+CREATE INDEX [IX_CabeceraFlete_IdEspecie]
+ON [cfl].[CabeceraFlete] ([IdEspecie]);
 GO
 
 CREATE INDEX [IX_CabeceraFlete_EstadoIdFactura]
@@ -748,28 +1124,6 @@ GO
 
 CREATE UNIQUE INDEX [UQ_CabeceraFactura_EmpresaNumero]
 ON [cfl].[CabeceraFactura] ([IdEmpresa], [NumeroFactura]);
-GO
-
-/* ============================================================
-   TABLA: cfl.ConciliacionFacturaFlete  (ex CFL_conciliacion_factura_flete)
-============================================================ */
-CREATE TABLE [cfl].[ConciliacionFacturaFlete] (
-    [IdConciliacion]        BIGINT NOT NULL IDENTITY UNIQUE,
-    [IdFactura]             BIGINT        NOT NULL,
-    [IdCabeceraFlete]       BIGINT        NOT NULL,
-    [MontoAsignado]         DECIMAL(18,2) NOT NULL,
-    [Diferencia]            DECIMAL(18,2) NOT NULL,
-    [ToleranciaAplicada]    DECIMAL(18,2) NOT NULL,
-    [Estado]                NVARCHAR(20)   NOT NULL,
-    [Observacion]           NVARCHAR(300)  NULL,
-    [FechaCreacion]         DATETIME2(0)  NOT NULL,
-    [FechaActualizacion]    DATETIME2(0)  NOT NULL,
-    PRIMARY KEY ([IdConciliacion])
-);
-GO
-
-CREATE UNIQUE INDEX [UQ_ConciliacionFacturaFlete_FacturaFlete]
-ON [cfl].[ConciliacionFacturaFlete] ([IdFactura], [IdCabeceraFlete]);
 GO
 
 /* ============================================================
@@ -884,6 +1238,25 @@ GO
 
 CREATE UNIQUE INDEX [UQ_FleteSapEntrega_Bridge]
 ON [cfl].[FleteSapEntrega] ([IdCabeceraFlete], [IdSapEntrega]);
+GO
+
+/* ============================================================
+   TABLA: cfl.FleteRomanaEntrega
+============================================================ */
+CREATE TABLE [cfl].[FleteRomanaEntrega] (
+    [IdFleteRomanaEntrega] BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdCabeceraFlete]      BIGINT       NOT NULL,
+    [IdRomanaEntrega]      BIGINT       NOT NULL,
+    [OrigenDatos]          NVARCHAR(10) NOT NULL CONSTRAINT [DF_FleteRomanaEntrega_OrigenDatos] DEFAULT('ROMANA'),
+    [TipoRelacion]         NVARCHAR(20) NOT NULL CONSTRAINT [DF_FleteRomanaEntrega_TipoRelacion] DEFAULT('PRINCIPAL'),
+    [FechaCreacion]        DATETIME2(0) NOT NULL,
+    [CreadoPor]            BIGINT       NULL,
+    PRIMARY KEY ([IdFleteRomanaEntrega])
+);
+GO
+
+CREATE UNIQUE INDEX [UQ_FleteRomanaEntrega_Bridge]
+ON [cfl].[FleteRomanaEntrega] ([IdCabeceraFlete], [IdRomanaEntrega]);
 GO
 
 /* ============================================================
@@ -1214,6 +1587,13 @@ FOREIGN KEY ([IdFactura]) REFERENCES [cfl].[CabeceraFactura] ([IdFactura])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
+-- CabeceraFlete → Especie
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_Especie]
+FOREIGN KEY ([IdEspecie]) REFERENCES [cfl].[Especie] ([IdEspecie])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
 -- DetalleFlete → CabeceraFlete
 ALTER TABLE [cfl].[DetalleFlete]
 ADD CONSTRAINT [FK_DetalleFlete_CabeceraFlete]
@@ -1277,20 +1657,6 @@ FOREIGN KEY ([IdPlanillaSapDocumento]) REFERENCES [cfl].[PlanillaSapDocumento] (
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
--- ConciliacionFacturaFlete → CabeceraFactura
-ALTER TABLE [cfl].[ConciliacionFacturaFlete]
-ADD CONSTRAINT [FK_ConciliacionFacturaFlete_CabeceraFactura]
-FOREIGN KEY ([IdFactura]) REFERENCES [cfl].[CabeceraFactura] ([IdFactura])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
--- ConciliacionFacturaFlete → CabeceraFlete
-ALTER TABLE [cfl].[ConciliacionFacturaFlete]
-ADD CONSTRAINT [FK_ConciliacionFacturaFlete_CabeceraFlete]
-FOREIGN KEY ([IdCabeceraFlete]) REFERENCES [cfl].[CabeceraFlete] ([IdCabeceraFlete])
-ON UPDATE NO ACTION ON DELETE NO ACTION;
-GO
-
 -- FleteSapEntrega → CabeceraFlete
 ALTER TABLE [cfl].[FleteSapEntrega]
 ADD CONSTRAINT [FK_FleteSapEntrega_CabeceraFlete]
@@ -1344,6 +1710,62 @@ GO
 ALTER TABLE [cfl].[Auditoria]
 ADD CONSTRAINT [FK_Auditoria_Usuario]
 FOREIGN KEY ([IdUsuario]) REFERENCES [cfl].[Usuario] ([IdUsuario])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- RomanaEntregaDescarte → RomanaEntrega
+ALTER TABLE [cfl].[RomanaEntregaDescarte]
+ADD CONSTRAINT [FK_RomanaEntregaDescarte_Entrega]
+FOREIGN KEY ([IdRomanaEntrega]) REFERENCES [cfl].[RomanaEntrega] ([IdRomanaEntrega])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- RomanaEntregaHistorial → RomanaEntrega
+ALTER TABLE [cfl].[RomanaEntregaHistorial]
+ADD CONSTRAINT [FK_RomanaEntregaHist_Entrega]
+FOREIGN KEY ([IdRomanaEntrega]) REFERENCES [cfl].[RomanaEntrega] ([IdRomanaEntrega])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- RomanaEntregaHistorial → RomanaCabeceraRaw
+ALTER TABLE [cfl].[RomanaEntregaHistorial]
+ADD CONSTRAINT [FK_RomanaEntregaHist_Raw]
+FOREIGN KEY ([IdRomanaCabeceraRaw]) REFERENCES [cfl].[RomanaCabeceraRaw] ([IdRomanaCabeceraRaw])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- RomanaEntregaPosicion → RomanaEntrega
+ALTER TABLE [cfl].[RomanaEntregaPosicion]
+ADD CONSTRAINT [FK_RomanaEntregaPos_Entrega]
+FOREIGN KEY ([IdRomanaEntrega]) REFERENCES [cfl].[RomanaEntrega] ([IdRomanaEntrega])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- RomanaEntregaPosicionHistorial → RomanaEntregaPosicion
+ALTER TABLE [cfl].[RomanaEntregaPosicionHistorial]
+ADD CONSTRAINT [FK_RomanaEntregaPosHist_Pos]
+FOREIGN KEY ([IdRomanaEntregaPosicion]) REFERENCES [cfl].[RomanaEntregaPosicion] ([IdRomanaEntregaPosicion])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- RomanaEntregaPosicionHistorial → RomanaDetalleRaw
+ALTER TABLE [cfl].[RomanaEntregaPosicionHistorial]
+ADD CONSTRAINT [FK_RomanaEntregaPosHist_Raw]
+FOREIGN KEY ([IdRomanaDetalleRaw]) REFERENCES [cfl].[RomanaDetalleRaw] ([IdRomanaDetalleRaw])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- FleteRomanaEntrega → CabeceraFlete
+ALTER TABLE [cfl].[FleteRomanaEntrega]
+ADD CONSTRAINT [FK_FleteRomanaEntrega_Flete]
+FOREIGN KEY ([IdCabeceraFlete]) REFERENCES [cfl].[CabeceraFlete] ([IdCabeceraFlete])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- FleteRomanaEntrega → RomanaEntrega
+ALTER TABLE [cfl].[FleteRomanaEntrega]
+ADD CONSTRAINT [FK_FleteRomanaEntrega_Romana]
+FOREIGN KEY ([IdRomanaEntrega]) REFERENCES [cfl].[RomanaEntrega] ([IdRomanaEntrega])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
