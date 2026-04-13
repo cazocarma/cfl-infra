@@ -4,34 +4,31 @@ Orquestacion Docker Compose para el sistema de Control de Fletes (CFL) de Greenv
 
 ## Arquitectura
 
-| Aspecto | PRD | DEV |
+| Aspecto | PRD (server) | DEV (local) |
 |---|---|---|
 | Branch | `main` | `dev` |
-| Compose project | `greenvic-cfl-prd` | `greenvic-cfl-dev` |
-| Backend alias | `cfl-backend` | `cfl-backend-dev` |
-| Frontend alias | `cfl-frontend` | `cfl-frontend-dev` |
-| Puerto (via platform nginx) | 80 | 83 |
-
-Cada ambiente corre desde su propio directorio:
+| Compose project | `greenvic-cfl-prd` | — |
+| Backend alias | `cfl-backend` | — |
+| Frontend alias | `cfl-frontend` | — |
+| Puerto | 80 | localhost |
 
 ```
 /opt/cfl/
-  prd/repos/         branch main, CFL_ENV=prd
+  prd/               branch main, CFL_ENV=prd
     cfl-infra/       docker-compose, .env, database scripts
     cfl-back/
     cfl-front-ng/
-  dev/repos/         branch dev, CFL_ENV=dev (o local)
-    cfl-infra/
-    cfl-back/
-    cfl-front-ng/
+  dev/               (vacio — desarrollo es local)
 ```
+
+Desarrollo se hace en maquina local. Deploy a PRD es automatico via merge a `main` (deployer por polling).
 
 ## Setup
 
 ### 1. Clonar repos
 
 ```bash
-mkdir -p /opt/cfl/prd/repos && cd /opt/cfl/prd/repos
+mkdir -p /opt/cfl/prd && cd /opt/cfl/prd
 git clone -b main git@github.com:cazocarma/cfl-infra.git
 git clone -b main git@github.com:cazocarma/cfl-back.git
 git clone -b main git@github.com:cazocarma/cfl-front-ng.git
@@ -40,7 +37,7 @@ git clone -b main git@github.com:cazocarma/cfl-front-ng.git
 ### 2. Configurar entorno
 
 ```bash
-cd /opt/cfl/prd/repos/cfl-infra
+cd /opt/cfl/prd/cfl-infra
 cp .env.example .env
 # Editar .env con valores reales (secrets, passwords, IPs)
 ```
@@ -74,7 +71,7 @@ El deploy a PRD se ejecuta automaticamente al hacer merge a `main` en GitHub:
 
 1. GitHub envia webhook a `http://<IP>/webhook/github`
 2. El servicio `greenvic-deployer` (en platform) valida la firma HMAC
-3. Ejecuta `git pull` en el repo afectado dentro de `/opt/cfl/prd/repos/`
+3. Ejecuta `git pull` en el repo afectado dentro de `/opt/cfl/prd/`
 4. Rebuild + restart del servicio Docker
 5. Smoke tests (health checks)
 
@@ -83,7 +80,7 @@ Configuracion del webhook: ver `platform/deployer/deploy-config.json`.
 ### Deploy manual
 
 ```bash
-cd /opt/cfl/prd/repos/cfl-infra
+cd /opt/cfl/prd/cfl-infra
 make deploy      # git pull + build + up (valida branch)
 make redeploy    # down + build + up
 ```
