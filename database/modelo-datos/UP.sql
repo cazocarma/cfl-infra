@@ -2117,3 +2117,37 @@ SELECT
 FROM ranked
 WHERE rn = 1;
 GO
+
+/* ============================================================
+   VISTA: cfl.VW_RomanaCabeceraActual
+   Última versión activa por BK (SistemaFuente, NumeroPartida, GuiaDespacho)
+============================================================ */
+CREATE OR ALTER VIEW [cfl].[VW_RomanaCabeceraActual] AS
+WITH ranked AS (
+  SELECT r.*,
+    rn = ROW_NUMBER() OVER (
+      PARTITION BY r.SistemaFuente, r.NumeroPartida, r.GuiaDespacho
+      ORDER BY r.FechaExtraccion DESC, r.IdRomanaCabeceraRaw DESC
+    )
+  FROM [cfl].[RomanaCabeceraRaw] r
+  WHERE r.EstadoFila = 'ACTIVE'
+)
+SELECT * FROM ranked WHERE rn = 1;
+GO
+
+/* ============================================================
+   VISTA: cfl.VW_RomanaDetalleActual
+   Última versión activa por BK (SistemaFuente, NumeroPartida, GuiaDespacho, Posicion, Lote)
+============================================================ */
+CREATE OR ALTER VIEW [cfl].[VW_RomanaDetalleActual] AS
+WITH ranked AS (
+  SELECT r.*,
+    rn = ROW_NUMBER() OVER (
+      PARTITION BY r.SistemaFuente, r.NumeroPartida, r.GuiaDespacho, r.Posicion, r.Lote
+      ORDER BY r.FechaExtraccion DESC, r.IdRomanaDetalleRaw DESC
+    )
+  FROM [cfl].[RomanaDetalleRaw] r
+  WHERE r.EstadoFila = 'ACTIVE'
+)
+SELECT * FROM ranked WHERE rn = 1;
+GO
