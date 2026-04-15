@@ -3,6 +3,7 @@
 # =============================================================================
 # CFL — Makefile operativo para entorno Linux/Ubuntu
 # Soporta multiples ambientes (prd/dev) en el mismo servidor.
+# Soporte oficial del Makefile: Linux Bash / Windows Git Bash.
 # Repos esperados (relativos a este Makefile):
 #   ../cfl-front-ng
 #   ../cfl-back
@@ -14,6 +15,45 @@ INFRA_DIR      := $(ROOT_DIR)
 CFL_FRONT_DIR  := $(abspath $(INFRA_DIR)/../cfl-front-ng)
 CFL_BACK_DIR   := $(abspath $(INFRA_DIR)/../cfl-back)
 
+# --- Shell -------------------------------------------------------------------
+# Soporte oficial:
+#   - Linux con bash en PATH
+#   - Windows con Git Bash / bash.exe en PATH
+BASH           ?=
+ifeq ($(strip $(BASH)),)
+  ifeq ($(OS),Windows_NT)
+    BASH := $(strip $(shell command -v bash 2>/dev/null))
+    ifeq ($(strip $(BASH)),)
+      ifneq ($(wildcard C:/Progra~1/Git/bin/bash.exe),)
+        BASH := C:/Progra~1/Git/bin/bash.exe
+      else ifneq ($(wildcard C:/Progra~1/Git/usr/bin/bash.exe),)
+        BASH := C:/Progra~1/Git/usr/bin/bash.exe
+      else ifneq ($(wildcard C:/Progra~1/Git/usr/bin/sh.exe),)
+        BASH := C:/Progra~1/Git/usr/bin/sh.exe
+      else ifneq ($(wildcard C:/Progra~2/Git/bin/bash.exe),)
+        BASH := C:/Progra~2/Git/bin/bash.exe
+      else ifneq ($(wildcard C:/Progra~2/Git/usr/bin/bash.exe),)
+        BASH := C:/Progra~2/Git/usr/bin/bash.exe
+      else ifneq ($(wildcard C:/Progra~2/Git/usr/bin/sh.exe),)
+        BASH := C:/Progra~2/Git/usr/bin/sh.exe
+      else
+        BASH := $(firstword $(subst \,/,$(shell where.exe bash 2>NUL)))
+        ifeq ($(strip $(BASH)),)
+          BASH := $(firstword $(subst \,/,$(shell where.exe sh 2>NUL)))
+        endif
+      endif
+    endif
+  else
+    BASH := $(strip $(shell command -v bash 2>/dev/null))
+  endif
+endif
+ifeq ($(strip $(BASH)),)
+  $(error Bash no encontrado. Soporte oficial: Linux con Bash y Windows con Git Bash/bash.exe en PATH)
+endif
+
+SHELL          := $(BASH)
+.SHELLFLAGS    := -o pipefail -c
+
 # --- Compose / env ------------------------------------------------------------
 COMPOSE_FILE   := $(INFRA_DIR)/docker-compose.yml
 ENV_FILE       := $(INFRA_DIR)/.env
@@ -23,17 +63,14 @@ COMPOSE        := docker compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
 COMPOSE_NODE   := $(COMPOSE) --profile node
 
 # --- Ambiente (leido del .env) ------------------------------------------------
-CFL_ENV        := $(shell grep -s '^CFL_ENV=' $(ENV_FILE) 2>/dev/null | cut -d= -f2 | tr -d ' ')
-ifeq ($(CFL_ENV),)
-  CFL_ENV      := prd
-endif
+CFL_ENV_RAW    := $(strip $(shell "$(BASH)" -lc 'if [ -f "$$1" ]; then grep -m1 "^CFL_ENV=" "$$1" | cut -d= -f2 | tr -d " \r"; fi' _ "$(ENV_FILE)"))
+CFL_ENV        := $(if $(CFL_ENV_RAW),$(CFL_ENV_RAW),prd)
 
 CFL_NETWORK    := greenvic-cfl-$(CFL_ENV)_default
 EXPECTED_BRANCH := $(if $(filter prd,$(CFL_ENV)),main,dev)
 
 # --- Utilidades ---------------------------------------------------------------
 TAIL           ?= 200
-SHELL          := /bin/bash
 
 # --- Phony targets ------------------------------------------------------------
 .PHONY: help
@@ -52,6 +89,7 @@ SHELL          := /bin/bash
 # Help
 # =============================================================================
 help:
+	@echo "Shell soportado oficialmente: Linux Bash / Windows Git Bash"
 	@echo "Greenvic Control Fletes — Makefile (ambiente: $(CFL_ENV))"
 	@echo ""
 	@echo "Setup:"
@@ -132,11 +170,8 @@ setup-env:
 # Validaciones
 # =============================================================================
 env-check:
-	@if [ ! -f "$(ENV_FILE)" ]; then \
-		echo "ERROR: Falta $(ENV_FILE)"; \
-		echo "Ejecuta: make setup-env ENV=prd  (o ENV=dev)"; \
-		exit 1; \
-	fi
+	$(if $(wildcard $(ENV_FILE)),,$(error ERROR: Falta $(ENV_FILE). Ejecuta: make setup-env ENV=prd  (o ENV=dev)))
+	@echo ".env OK"
 
 net-check:
 	@docker network inspect $(CFL_NETWORK) > /dev/null 2>&1 || \

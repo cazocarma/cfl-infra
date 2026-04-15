@@ -2,6 +2,11 @@
 
 Orquestacion Docker Compose para el sistema de Control de Fletes (CFL) de Greenvic.
 
+Soporte oficial del Makefile:
+
+- Linux con Bash
+- Windows con Git Bash o `bash`/`bash.exe` disponible en `PATH`
+
 ## Arquitectura
 
 | Aspecto | PRD (server) | DEV (local) |
@@ -48,6 +53,8 @@ cp .env.example .env
 make up          # Levanta el stack
 make up-build    # Levanta reconstruyendo imagenes
 ```
+
+En Windows, correr estos comandos desde Git Bash o desde una terminal que tenga `bash` disponible en `PATH`.
 
 ## Variables de entorno
 

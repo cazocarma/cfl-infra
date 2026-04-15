@@ -26,7 +26,7 @@ services:
     image: cfl-front-ng:${CFL_ENV:-prd}
     init: true
     restart: unless-stopped
-    pull_policy: if_not_present
+    pull_policy: never
     read_only: true
     tmpfs:
       - /var/cache/nginx:uid=101,gid=101
