@@ -1,36 +1,49 @@
-# cfl-infra
+# CFL Infraestructura
 
-Orquestacion Docker Compose para el sistema de Control de Fletes (CFL) de Greenvic.
+Orquestacion Docker Compose, scripts de base de datos y herramientas de operacion para el sistema de Control de Fletes (CFL) de Greenvic. Este repositorio centraliza la configuracion de entorno, el esquema de base de datos y los procedimientos de deploy para los ambientes de desarrollo y produccion.
 
-Soporte oficial del Makefile:
+## Arquitectura general
 
-- Linux con Bash
-- Windows con Git Bash o `bash`/`bash.exe` disponible en `PATH`
+El sistema CFL se compone de tres repositorios que trabajan en conjunto:
 
-## Arquitectura
+| Repositorio | Descripcion | Puerto |
+| --- | --- | --- |
+| `cfl-infra` | Orquestacion, base de datos y configuracion de entorno | -- |
+| `cfl-back` | API REST Node.js/Express | 4000 |
+| `cfl-front-ng` | Aplicacion web Angular | 3000 |
 
-| Aspecto | PRD (server) | DEV (local) |
-|---|---|---|
-| Branch | `main` | `dev` |
-| Compose project | `greenvic-cfl-prd` | — |
-| Backend alias | `cfl-backend` | — |
-| Frontend alias | `cfl-frontend` | — |
-| Puerto | 80 | localhost |
+### Ambientes
 
-```
+| Aspecto | Produccion (PRD) | Desarrollo (DEV) |
+| --- | --- | --- |
+| Branch esperado | `main` | `dev` |
+| Compose project | `greenvic-cfl-prd` | -- |
+| Backend alias | `cfl-backend` | -- |
+| Frontend alias | `cfl-frontend` | -- |
+| Ubicacion | `/opt/cfl/prd/` (servidor) | Maquina local del desarrollador |
+
+### Estructura en servidor de produccion
+
+```text
 /opt/cfl/
-  prd/               branch main, CFL_ENV=prd
-    cfl-infra/       docker-compose, .env, database scripts
-    cfl-back/
-    cfl-front-ng/
-  dev/               (vacio — desarrollo es local)
+  prd/
+    cfl-infra/       Docker Compose, .env, scripts de base de datos
+    cfl-back/        Codigo fuente del backend
+    cfl-front-ng/    Codigo fuente del frontend
 ```
 
-Desarrollo se hace en maquina local. Deploy a PRD es automatico via merge a `main` (deployer por polling).
+El desarrollo se realiza en maquina local. El deploy a produccion es automatico mediante merge a `main` (ver seccion Deploy).
 
-## Setup
+## Compatibilidad del Makefile
 
-### 1. Clonar repos
+El Makefile requiere `bash` disponible en el PATH del sistema:
+
+- Linux con Bash (nativo)
+- Windows con Git Bash o cualquier terminal que exponga `bash`/`bash.exe`
+
+## Setup inicial
+
+### 1. Clonar repositorios
 
 ```bash
 mkdir -p /opt/cfl/prd && cd /opt/cfl/prd
@@ -44,102 +57,193 @@ git clone -b main git@github.com:cazocarma/cfl-front-ng.git
 ```bash
 cd /opt/cfl/prd/cfl-infra
 cp .env.example .env
-# Editar .env con valores reales (secrets, passwords, IPs)
 ```
 
-### 3. Levantar
+Editar `.env` con los valores reales de la instalacion (secrets, passwords, IPs, tokens). El archivo `.env` esta gitignoreado y nunca debe subirse al repositorio.
+
+### 3. Levantar el stack
 
 ```bash
-make up          # Levanta el stack
-make up-build    # Levanta reconstruyendo imagenes
+make up          # Levanta todos los servicios
+make up-build    # Levanta reconstruyendo imagenes Docker
 ```
 
-En Windows, correr estos comandos desde Git Bash o desde una terminal que tenga `bash` disponible en `PATH`.
+En Windows, ejecutar estos comandos desde Git Bash.
 
 ## Variables de entorno
 
-Archivo: `cfl-infra/.env` (gitignoreado). Plantilla: `.env.example`.
+Archivo: `.env` (gitignoreado). Plantilla de referencia: `.env.example`.
 
-| Variable | Descripcion |
-|---|---|
-| `CFL_ENV` | Ambiente: `prd` o `dev` |
-| `CFL_BACKEND_ALIAS` | Alias Docker del backend |
-| `CFL_FRONTEND_ALIAS` | Alias Docker del frontend |
-| `NODE_ENV` | `production` o `development` |
-| `PORT` | Puerto del backend (4000) |
-| `CORS_ORIGIN` | Origen CORS |
-| `AUTHN_JWT_SECRET` | Secret JWT (min 32 bytes) |
-| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | Conexion SQL Server |
-| `SAP_ETL_BASE_URL` / `SAP_ETL_API_TOKEN` | Integracion SAP ETL |
+### Ambiente y Docker
 
-## Deploy automatico
+| Variable | Descripcion | Ejemplo |
+| --- | --- | --- |
+| `CFL_ENV` | Ambiente de ejecucion | `prd` o `dev` |
+| `CFL_BACKEND_ALIAS` | Alias Docker del contenedor backend | `cfl-backend` |
+| `CFL_FRONTEND_ALIAS` | Alias Docker del contenedor frontend | `cfl-frontend` |
+| `NODE_ENV` | Ambiente de Node.js | `production` o `development` |
 
-El deploy a PRD se ejecuta automaticamente al hacer merge a `main` en GitHub:
+### Backend
 
-1. GitHub envia webhook a `http://<IP>/webhook/github`
-2. El servicio `greenvic-deployer` (en platform) valida la firma HMAC
-3. Ejecuta `git pull` en el repo afectado dentro de `/opt/cfl/prd/`
-4. Rebuild + restart del servicio Docker
-5. Smoke tests (health checks)
+| Variable | Descripcion | Ejemplo |
+| --- | --- | --- |
+| `PORT` | Puerto del servidor backend | `4000` |
+| `CORS_ORIGIN` | Origen permitido para CORS | `http://localhost:3000` |
+| `AUTHN_JWT_SECRET` | Secreto JWT HS256 (minimo 32 bytes, obligatorio) | -- |
 
-Configuracion del webhook: ver `platform/deployer/deploy-config.json`.
+### Base de datos
+
+| Variable | Descripcion | Ejemplo |
+| --- | --- | --- |
+| `DB_HOST` | Host de SQL Server | `sqlserver` |
+| `DB_PORT` | Puerto de SQL Server | `1433` |
+| `DB_USER` | Usuario de SQL Server | `sa` |
+| `DB_PASSWORD` | Password de SQL Server | -- |
+| `DB_NAME` | Nombre de la base de datos | `CFL` |
+
+### Integracion SAP ETL
+
+| Variable | Descripcion | Ejemplo |
+| --- | --- | --- |
+| `SAP_ETL_BASE_URL` | URL base del servicio SAP ETL | `http://sap-etl:5000` |
+| `SAP_ETL_API_TOKEN` | Bearer token para autenticacion | -- |
+| `SAP_ETL_DEFAULT_DESTINATION` | Destino RFC por defecto | `PRD` |
+| `SAP_ETL_REQUEST_TIMEOUT_MS` | Timeout de requests hacia SAP ETL (ms) | `125000` |
+| `CFL_ETL_MAX_DATE_RANGE_DAYS` | Maximo de dias en consultas por rango | `30` |
+
+## Servicios Docker
+
+| Servicio | Imagen base | Puerto | Memoria | CPU | Descripcion |
+| --- | --- | --- | --- | --- | --- |
+| `front-ng` | node:20 / nginx:1.27 | 3000 | 128 MB | 0.5 | Frontend Angular (read-only en runtime) |
+| `back` | node:20-slim | 4000 | 512 MB | 1.0 | Backend Node.js/Express |
+
+El servicio `back` utiliza el profile `node` y debe iniciarse explicitamente con `--profile node` o mediante el Makefile.
+
+### Redes
+
+| Red | Proposito |
+| --- | --- |
+| `greenvic-cfl-{env}_default` | Comunicacion interna entre servicios del stack |
+| `platform_identity` | Comunicacion con el servicio de identidad (Keycloak) |
+| `greenvic-cfl-{env}_egress` | Salida a servicios externos (SAP ETL) |
+
+## Base de datos
+
+El esquema completo reside en `[cfl]` dentro de SQL Server. Los scripts se organizan de la siguiente manera:
+
+```text
+database/modelo-datos/
+  UP.sql                        Definicion completa del esquema (tablas, vistas, indices, FKs)
+  DOWN.sql                      Eliminacion completa del esquema
+  seed/
+    01_catalogos_base.sql       Catalogos iniciales (temporadas, centros de costo, tipos)
+    02_logistica_tarifas.sql    Nodos logisticos, rutas y tarifas
+    03_transporte.sql           Empresas de transporte, camiones, choferes
+    04_seguridad.sql            Roles, permisos y usuarios seed (idempotente via MERGE)
+    05_empresas_transportes_sap.sql   Empresas de transporte sincronizadas desde SAP
+    06_productores_sap_bp.sql   Productores sincronizados desde SAP Business Partners
+  ops/
+    (migraciones incrementales ordenadas por fecha)
+```
+
+### Roles y permisos predefinidos
+
+| Rol | Cantidad de permisos | Alcance |
+| --- | --- | --- |
+| Administrador | 33 (todos) | Acceso total al sistema |
+| Autorizador | 27 | Operaciones de fletes, facturacion y mantenedores parciales |
+| Ingresador | 11 | Ingreso de fletes, lectura de facturas, planillas y mantenedores |
+
+Los usuarios seed y sus asignaciones de roles se definen en `seed/04_seguridad.sql` utilizando sentencias MERGE para garantizar idempotencia.
+
+## Deploy
+
+### Deploy automatico (produccion)
+
+El deploy a produccion se ejecuta automaticamente al hacer merge a `main` en GitHub:
+
+1. GitHub envia un webhook a `http://<IP>/webhook/github`
+2. El servicio `greenvic-deployer` (en la plataforma) valida la firma HMAC del payload
+3. Ejecuta `git pull` en el repositorio afectado dentro de `/opt/cfl/prd/`
+4. Reconstruye y reinicia el servicio Docker correspondiente
+5. Ejecuta smoke tests (health checks) para verificar disponibilidad
+
+La configuracion del webhook se encuentra en `platform/deployer/deploy-config.json`.
 
 ### Deploy manual
 
 ```bash
 cd /opt/cfl/prd/cfl-infra
-make deploy      # git pull + build + up (valida branch)
-make redeploy    # down + build + up
+make deploy      # git pull + build + up (valida que el branch sea el esperado)
+make redeploy    # down + build + up (reconstruccion completa)
 ```
-
-## Base de datos
-
-Esquema: `[cfl]` en SQL Server. Scripts en `database/modelo-datos/`:
-
-| Archivo | Descripcion |
-|---|---|
-| `UP.sql` | Definicion completa del schema (52 tablas, vistas, indices, FKs) |
-| `seed/04_seguridad.sql` | Roles, permisos, usuarios seed (idempotente via MERGE) |
-
-### Roles y permisos
-
-| Rol | Permisos | Descripcion |
-|---|---|---|
-| Administrador | 33 (todos) | Acceso total |
-| Autorizador | 27 | Operaciones + mantenedores parcial |
-| Ingresador | 11 | Fletes + lectura facturas/planillas/mantenedores |
-
-## Servicios
-
-| Servicio | Puerto interno | Descripcion |
-|---|---|---|
-| `front-ng` | 3000 | Frontend Angular |
-| `back` | 4000 | Backend Node.js/Express |
-
-## Red
-
-| Red | Proposito |
-|---|---|
-| `greenvic-cfl-{env}_default` | Red principal del stack |
-| `platform_identity` | Comunicacion con Keycloak |
-| `greenvic-cfl-{env}_egress` | Salida a servicios externos (SAP ETL) |
 
 ## Makefile
 
-| Target | Descripcion |
-|---|---|
-| `up` / `up-build` | Levantar stack |
-| `down` / `down-v` | Bajar stack (con/sin volumenes) |
-| `deploy` / `redeploy` | Deploy (pull+build+up) |
-| `ps` / `status` | Estado de contenedores |
-| `logs` / `logs-cfl-front` / `logs-cfl-back` | Logs |
-| `doctor` | Verificacion completa del entorno |
-| `env-info` | Muestra ambiente actual |
+### Operaciones principales
 
-## Validacion
+| Target | Descripcion |
+| --- | --- |
+| `up` | Levanta el stack Docker |
+| `up-build` | Levanta el stack reconstruyendo imagenes |
+| `down` | Detiene y elimina contenedores |
+| `down-v` | Detiene y elimina contenedores junto con volumenes |
+| `stop` / `start` / `restart` | Control de contenedores sin eliminarlos |
+
+### Build
+
+| Target | Descripcion |
+| --- | --- |
+| `build-cfl-front` | Construye imagen del frontend |
+| `build-cfl-back` | Construye imagen del backend |
+| `build-all` | Construye todas las imagenes |
+| `rebuild` | Reconstruye sin cache |
+
+### Deploy
+
+| Target | Descripcion |
+| --- | --- |
+| `deploy` | Pull de codigo + build + up (valida branch) |
+| `redeploy` | Down + build + up (reconstruccion completa) |
+| `pull` | Git pull en todos los repositorios |
+
+### Monitoreo y diagnostico
+
+| Target | Descripcion |
+| --- | --- |
+| `ps` / `status` | Estado de los contenedores |
+| `logs` | Logs de todos los servicios |
+| `logs-cfl-front` | Logs del frontend |
+| `logs-cfl-back` | Logs del backend |
+| `doctor` | Verificacion completa del entorno (Docker, redes, archivos, branches) |
+| `env-info` | Muestra el ambiente actual y configuracion |
+
+### Infraestructura
+
+| Target | Descripcion |
+| --- | --- |
+| `images` | Lista imagenes Docker del proyecto |
+| `volumes` | Lista volumenes Docker del proyecto |
+| `networks` | Lista redes Docker del proyecto |
+| `prune-soft` | Limpieza de recursos Docker no utilizados |
+| `prune` | Limpieza agresiva de recursos Docker |
+| `config` | Muestra la configuracion Docker Compose resultante |
+| `exec-cfl-front` / `exec-cfl-back` | Shell interactivo en contenedores |
+
+## Verificacion del entorno
 
 ```bash
 make doctor
-curl http://127.0.0.1/healthz       # frontend PRD
-curl http://127.0.0.1/api/health    # backend PRD
+```
+
+El target `doctor` ejecuta una verificacion completa que incluye: disponibilidad de Docker, existencia de redes externas, presencia del archivo `.env`, estado de los repositorios y branch actual.
+
+### Health checks manuales
+
+```bash
+curl http://127.0.0.1/healthz       # Frontend (produccion, via proxy)
+curl http://127.0.0.1/api/health    # Backend (produccion, via proxy)
+curl http://localhost:3000/healthz   # Frontend (local)
+curl http://localhost:4000/health    # Backend (local)
 ```
