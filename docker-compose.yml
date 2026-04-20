@@ -1,22 +1,24 @@
-name: greenvic-cfl-${CFL_ENV}
+name: greenvic-cfl-${CFL_ENV:-prd}
 
-x-node-service: &node-service
-  image: node:20-bookworm-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
-  init: true
-  restart: unless-stopped
-  pull_policy: if_not_present
-  security_opt:
-    - no-new-privileges:true
-  environment:
-    NODE_ENV: "${NODE_ENV:-development}"
-    NPM_CONFIG_FETCH_RETRIES: "5"
-    NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
-    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
-    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
-    NPM_CONFIG_AUDIT: "false"
-    NPM_CONFIG_FUND: "false"
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
+# =============================================================================
+# CFL — docker-compose base (prod-like).
+# Alineado con platform/docs/PLATFORM_INTEGRATION_SPEC.md §6.
+#
+# Consume las redes externas de platform:
+#   - platform_identity  (Keycloak, si la app lo usa)
+#
+# El router de platform (NGINX :80) alcanza este stack por los aliases
+# `cfl-frontend` y `cfl-backend`.
+#
+# En dev, docker-compose.override.yml agrega bind mounts + hot-reload.
+# =============================================================================
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
 
 services:
   front-ng:
@@ -24,6 +26,7 @@ services:
       context: ../cfl-front-ng
       dockerfile: Dockerfile
     image: cfl-front-ng:${CFL_ENV:-prd}
+    container_name: cfl-front-${CFL_ENV:-prd}
     init: true
     restart: unless-stopped
     pull_policy: never
@@ -34,6 +37,8 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    logging:
+      <<: *default-logging
     deploy:
       resources:
         limits:
@@ -44,70 +49,65 @@ services:
     networks:
       default:
         aliases:
-          - ${CFL_FRONTEND_ALIAS:-cfl-frontend}
+          - cfl-frontend
     healthcheck:
       test:
-        ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000/healthz > /dev/null 2>&1 || exit 1"]
+        - "CMD-SHELL"
+        - "wget -q -O - http://127.0.0.1:3000/healthz > /dev/null 2>&1 || exit 1"
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 15s
 
   back:
-    <<: *node-service
-    profiles: ["node"]
-    working_dir: /workspace/cfl-back
-    env_file:
-      - ./.env
+    build:
+      context: ../cfl-back
+      dockerfile: Dockerfile
+      target: runtime
+    image: cfl-back:${CFL_ENV:-prd}
+    container_name: cfl-back-${CFL_ENV:-prd}
+    init: true
+    restart: unless-stopped
+    pull_policy: never
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      <<: *default-logging
     deploy:
       resources:
         limits:
           memory: 512M
           cpus: "1.0"
+    env_file:
+      - ./.env
     environment:
-      NODE_ENV: "${NODE_ENV:-development}"
-      NPM_CONFIG_FETCH_RETRIES: "5"
-      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
-      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
-      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
-      NPM_CONFIG_AUDIT: "false"
-      NPM_CONFIG_FUND: "false"
+      NODE_ENV: "${NODE_ENV:-production}"
       PORT: "${PORT:-4000}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     expose:
       - "4000"
     networks:
       default:
         aliases:
-          - ${CFL_BACKEND_ALIAS:-cfl-backend}
-      egress:
+          - cfl-backend
       identity:
-    volumes:
-      - ../cfl-back:/workspace/cfl-back
-      - back-node_modules:/workspace/cfl-back/node_modules
-      - npm-cache:/root/.npm
-    command: >
-      sh -lc "if [ ! -f node_modules/express/package.json ] || [ ! -f node_modules/mssql/package.json ]; then npm install --prefer-offline --no-audit --no-fund; fi && npm run dev"
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          "node -e \"require('http').get('http://127.0.0.1:4000/health',r=>process.exit(r.statusCode>=200&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))\"",
-        ]
+        - "CMD-SHELL"
+        - "node -e \"require('http').get('http://127.0.0.1:4000/health',r=>process.exit(r.statusCode>=200&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))\""
       interval: 15s
       timeout: 5s
       retries: 20
       start_period: 30s
 
-volumes:
-  npm-cache:
-  back-node_modules:
-
 networks:
   default:
     external: true
-    name: greenvic-cfl-${CFL_ENV}_default
-  egress:
-    name: greenvic-cfl-${CFL_ENV}_egress
+    name: greenvic-cfl-${CFL_ENV:-prd}_default
   identity:
     external: true
     name: platform_identity
