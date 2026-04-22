@@ -840,8 +840,8 @@ GO
 
 CREATE TABLE [cfl].[EmpresaTransporte] (
     [IdEmpresa]              BIGINT NOT NULL IDENTITY UNIQUE,
-    [SapCodigo]              CHAR(3)      NULL,
-    [Rut]                    NVARCHAR(20)  NOT NULL,
+    [SapCodigo]              NVARCHAR(10) NULL,
+    [Rut]                    NVARCHAR(20) NULL,
     [RazonSocial]            NVARCHAR(100) NULL,
     [NombreRepresentante]    NVARCHAR(100) NULL,
     [Correo]                 NVARCHAR(100) NULL,
@@ -854,21 +854,41 @@ CREATE TABLE [cfl].[EmpresaTransporte] (
 GO
 
 CREATE UNIQUE INDEX [UQ_EmpresaTransporte_Rut]
-ON [cfl].[EmpresaTransporte] ([Rut]);
+ON [cfl].[EmpresaTransporte] ([Rut])
+WHERE [Rut] IS NOT NULL;
+GO
+
+CREATE UNIQUE INDEX [UQ_EmpresaTransporte_SapCodigo]
+ON [cfl].[EmpresaTransporte] ([SapCodigo])
+WHERE [SapCodigo] IS NOT NULL;
 GO
 
 CREATE TABLE [cfl].[Chofer] (
     [IdChofer]      BIGINT NOT NULL IDENTITY UNIQUE,
-    [SapIdFiscal]   NVARCHAR(20) NOT NULL,
+    [SapIdFiscal]   NVARCHAR(24) NOT NULL,
     [SapNombre]     NVARCHAR(80) NOT NULL,
-    [Telefono]      NVARCHAR(20) NULL,
+    [Telefono]      NVARCHAR(30) NULL,
     [Activo]        BIT         NOT NULL,
+    [SapIdFiscalNorm] AS (
+        CAST(
+            UPPER(
+                REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                    ISNULL([SapIdFiscal], ''),
+                    '.', ''), '-', ''), ' ', ''),
+                    CHAR(9), ''), CHAR(10), '')
+            ) AS NVARCHAR(24)
+        )
+    ) PERSISTED,
     PRIMARY KEY ([IdChofer])
 );
 GO
 
 CREATE UNIQUE INDEX [UQ_Chofer_SapIdFiscal]
 ON [cfl].[Chofer] ([SapIdFiscal]);
+GO
+
+CREATE INDEX [IX_Chofer_SapIdFiscalNorm]
+ON [cfl].[Chofer] ([SapIdFiscalNorm]);
 GO
 
 CREATE TABLE [cfl].[Movil] (
@@ -1068,17 +1088,28 @@ GO
    TABLA: cfl.DetalleFlete  (ex CFL_detalle_flete)
 ============================================================ */
 CREATE TABLE [cfl].[DetalleFlete] (
-    [IdDetalleFlete]    BIGINT NOT NULL IDENTITY UNIQUE,
-    [IdCabeceraFlete]   BIGINT        NOT NULL,
-    [IdEspecie]         BIGINT        NULL,
-    [Material]          NVARCHAR(50)   NULL,
-    [Descripcion]       NVARCHAR(100)  NULL,
-    [Cantidad]          DECIMAL(12,2) NULL,
-    [Unidad]            CHAR(3)       NULL,
-    [Peso]              DECIMAL(15,3) NULL,
-    [FechaCreacion]     DATETIME2(0)  NOT NULL,
+    [IdDetalleFlete]       BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdCabeceraFlete]      BIGINT        NOT NULL,
+    [IdEspecie]            BIGINT        NULL,
+    [Material]             NVARCHAR(50)   NULL,
+    [Descripcion]          NVARCHAR(100)  NULL,
+    [Cantidad]             DECIMAL(12,2) NULL,
+    [Unidad]               CHAR(3)       NULL,
+    [Peso]                 DECIMAL(15,3) NULL,
+    [FechaCreacion]        DATETIME2(0)  NOT NULL,
+    -- Trazabilidad Romana: persistida al crear el flete desde un grupo Romana
+    -- (multi-partida). NULL para detalles de origen SAP o manual.
+    [IdRomanaEntrega]      BIGINT        NULL,
+    [RomanaNumeroPartida]  NVARCHAR(20)  NULL,
+    [RomanaPosicion]       NVARCHAR(10)  NULL,
+    [RomanaLote]           NVARCHAR(20)  NULL,
     PRIMARY KEY ([IdDetalleFlete])
 );
+GO
+
+CREATE INDEX [IX_DetalleFlete_IdRomanaEntrega]
+ON [cfl].[DetalleFlete] ([IdRomanaEntrega])
+INCLUDE ([RomanaNumeroPartida], [RomanaPosicion], [RomanaLote]);
 GO
 
 /* ============================================================
@@ -1257,6 +1288,14 @@ GO
 
 CREATE UNIQUE INDEX [UQ_FleteRomanaEntrega_Bridge]
 ON [cfl].[FleteRomanaEntrega] ([IdCabeceraFlete], [IdRomanaEntrega]);
+GO
+
+-- Garantiza la invariante "una entrega Romana -> un único flete".
+-- El bridge compuesto permite multi-entrega por cabecera (modelo agrupado por
+-- camión/guía), pero una misma IdRomanaEntrega nunca puede quedar vinculada a
+-- dos cabeceras distintas.
+CREATE UNIQUE INDEX [UQ_FleteRomanaEntrega_IdRomanaEntrega]
+ON [cfl].[FleteRomanaEntrega] ([IdRomanaEntrega]);
 GO
 
 /* ============================================================
@@ -1605,6 +1644,13 @@ GO
 ALTER TABLE [cfl].[DetalleFlete]
 ADD CONSTRAINT [FK_DetalleFlete_Especie]
 FOREIGN KEY ([IdEspecie]) REFERENCES [cfl].[Especie] ([IdEspecie])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- DetalleFlete → RomanaEntrega (trazabilidad persistida de posiciones Romana)
+ALTER TABLE [cfl].[DetalleFlete]
+ADD CONSTRAINT [FK_DetalleFlete_RomanaEntrega]
+FOREIGN KEY ([IdRomanaEntrega]) REFERENCES [cfl].[RomanaEntrega] ([IdRomanaEntrega])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 

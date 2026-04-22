@@ -12,17 +12,23 @@
 
    Tablas PURGADAS (transaccional):
      -- ETL + staging
-     EtlEjecucion, StgLikp, StgLips
+     EtlEjecucion, StgLikp, StgLips, StgRomanaCabecera, StgRomanaDetalle
      -- SAP raw
      SapLikpRaw, SapLipsRaw
      -- SAP canonicas + historial
      SapEntregaPosicionHistorial, SapEntregaPosicion,
      SapEntregaHistorial, SapEntrega, SapEntregaDescarte
+     -- Romana raw
+     RomanaCabeceraRaw, RomanaDetalleRaw
+     -- Romana canonicas + historial + descarte
+     RomanaEntregaPosicionHistorial, RomanaEntregaPosicion,
+     RomanaEntregaHistorial, RomanaEntregaDescarte, RomanaEntrega
      -- Fletes
-     DetalleFlete, FleteEstadoHistorial, FleteSapEntrega, CabeceraFlete
+     DetalleFlete, FleteEstadoHistorial,
+     FleteSapEntrega, FleteRomanaEntrega, CabeceraFlete
      -- Facturas y planillas
-     PlanillaSapLinea, PlanillaSapDocumento, PlanillaSap,
-     ConciliacionFacturaFlete, CabeceraFactura
+     PlanillaSapLinea, PlanillaSapDocumento, PlanillaSapFactura,
+     PlanillaSap, CabeceraFactura
      -- Sesiones
      TokenBlocklist
      -- Auditoria
@@ -48,19 +54,24 @@ INSERT INTO @tables (tabla) VALUES
     /* ── Auditoria ── */
     ('Auditoria'),
 
-    /* ── Planillas SAP (hijos primero) ── */
+    /* ── Planillas SAP (hijos primero) ──
+       PlanillaSapFactura (bridge N:N planilla↔factura) debe ir antes que
+       PlanillaSap y CabeceraFactura porque tiene FKs a ambos. */
     ('PlanillaSapLinea'),
     ('PlanillaSapDocumento'),
+    ('PlanillaSapFactura'),
     ('PlanillaSap'),
 
-    /* ── Facturas (hijos primero) ── */
-    ('ConciliacionFacturaFlete'),
+    /* ── Facturas ── */
     ('CabeceraFactura'),
 
-    /* ── Fletes (hijos primero) ── */
+    /* ── Fletes (hijos primero) ──
+       FleteRomanaEntrega tiene FK a CabeceraFlete y a RomanaEntrega; aquí se
+       purga el bridge, y el lado Romana se limpia en su propia sección abajo. */
     ('DetalleFlete'),
     ('FleteEstadoHistorial'),
     ('FleteSapEntrega'),
+    ('FleteRomanaEntrega'),
     ('CabeceraFlete'),
 
     /* ── SAP canonicas (hijos primero) ── */
@@ -77,6 +88,21 @@ INSERT INTO @tables (tabla) VALUES
     /* ── SAP staging ── */
     ('StgLips'),
     ('StgLikp'),
+
+    /* ── Romana canonicas (hijos primero) ── */
+    ('RomanaEntregaDescarte'),
+    ('RomanaEntregaPosicionHistorial'),
+    ('RomanaEntregaPosicion'),
+    ('RomanaEntregaHistorial'),
+    ('RomanaEntrega'),
+
+    /* ── Romana raw ── */
+    ('RomanaDetalleRaw'),
+    ('RomanaCabeceraRaw'),
+
+    /* ── Romana staging ── */
+    ('StgRomanaDetalle'),
+    ('StgRomanaCabecera'),
 
     /* ── ETL ── */
     ('EtlEjecucion'),
