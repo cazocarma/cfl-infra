@@ -756,6 +756,12 @@ CREATE UNIQUE INDEX [UQ_Temporada_Codigo]
 ON [cfl].[Temporada] ([Codigo]);
 GO
 
+-- Solo una temporada puede estar Activa a la vez.
+CREATE UNIQUE INDEX [UQ_Temporada_Activa]
+ON [cfl].[Temporada] ([Activa])
+WHERE [Activa] = 1;
+GO
+
 CREATE TABLE [cfl].[CentroCosto] (
     [IdCentroCosto] BIGINT NOT NULL IDENTITY UNIQUE,
     [SapCodigo]     NVARCHAR(20)  NOT NULL,
@@ -1021,10 +1027,11 @@ GO
 
 /* ============================================================
    TABLA: cfl.CabeceraFlete  (ex CFL_cabecera_flete)
-   Incluye IdFactura (migración 20250309)
+   Incluye IdFactura (migración 20250309) e IdTemporada (migración 20260422).
 ============================================================ */
 CREATE TABLE [cfl].[CabeceraFlete] (
     [IdCabeceraFlete]    BIGINT NOT NULL IDENTITY UNIQUE,
+    [IdTemporada]        BIGINT        NOT NULL,
     [SapNumeroEntrega]   NVARCHAR(20)   NULL,
     [SapCodigoTipoFlete] CHAR(4)       NULL,
     [SapCentroCosto]     CHAR(10)      NULL,
@@ -1082,6 +1089,10 @@ GO
 CREATE INDEX [IX_CabeceraFlete_IdFactura]
 ON [cfl].[CabeceraFlete] ([IdFactura])
 WHERE [IdFactura] IS NOT NULL;
+GO
+
+CREATE INDEX [IX_CabeceraFlete_IdTemporada]
+ON [cfl].[CabeceraFlete] ([IdTemporada]);
 GO
 
 /* ============================================================
@@ -1630,6 +1641,13 @@ GO
 ALTER TABLE [cfl].[CabeceraFlete]
 ADD CONSTRAINT [FK_CabeceraFlete_Especie]
 FOREIGN KEY ([IdEspecie]) REFERENCES [cfl].[Especie] ([IdEspecie])
+ON UPDATE NO ACTION ON DELETE NO ACTION;
+GO
+
+-- CabeceraFlete → Temporada
+ALTER TABLE [cfl].[CabeceraFlete]
+ADD CONSTRAINT [FK_CabeceraFlete_Temporada]
+FOREIGN KEY ([IdTemporada]) REFERENCES [cfl].[Temporada] ([IdTemporada])
 ON UPDATE NO ACTION ON DELETE NO ACTION;
 GO
 
