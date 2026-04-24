@@ -1,17 +1,21 @@
+name: greenvic-cfl-${CFL_ENV:-dev}
+
 # =============================================================================
-# CFL — docker-compose.dev.yml (local dev overlay)
-# Se carga SOLO cuando CFL_ENV=dev (via Makefile). No se auto-loadea.
+# CFL — docker-compose.dev.yml (overlay DESARROLLO LOCAL)
 #
-# Diseno:
-#   - Back corre `node --watch` sobre /app/src (bind mount :ro).
-#   - node_modules baked en la imagen (stage `dev`); sin install en runtime.
-#   - Cambios en package.json requieren `make up` (rebuild). Cambios en src/
-#     se reflejan por watch.
-#   - Front corre `ng serve` con hot-reload.
-#   - Lift de limites de memoria: esbuild/Angular piden mas que prd.
+# Se usa automaticamente cuando CFL_ENV=dev en .env.
+# Combinacion: docker compose -f docker-compose.yml -f docker-compose.dev.yml
+#
+# Define los overrides especificos de dev:
+#   - Back con build target `dev`, `node --watch` sobre /app/src.
+#   - Front con `ng serve` hot-reload (target `builder`, memory lift a 2G).
+#   - NODE_ENV=development, LOG_LEVEL=debug.
+#   - OIDC URLs publicas -> localhost:80 (via router de platform dev).
+#   - Cookies relajadas (SECURE=false, SAMESITE=lax) para HTTP plano.
+#   - CORS_ORIGIN=http://localhost (para `ng serve` directo en :4200).
 #
 # Requisitos:
-#   - `platform` arriba en el mismo host con PLATFORM_ENV=dev.
+#   - `platform` arriba con PLATFORM_ENV=dev (keycloak dev-mem + router).
 #   - CFL_ENV=dev en .env.
 # =============================================================================
 
@@ -25,17 +29,16 @@ services:
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug
-      # ── OIDC: browser -> Keycloak local (via router de platform)
-      # Inerte hoy (CFL usa AUTHN_JWT_SECRET propia); queda pre-provisionado
-      # para la migracion a BFF OIDC.
+      # OIDC: browser -> Keycloak local (via router de platform dev en :8080).
+      # Inerte hoy (CFL usa AUTHN_JWT_SECRET); listo para migracion a BFF.
       OIDC_ISSUER_URL: http://localhost:8080/realms/CFLRealm
       OIDC_REDIRECT_URI: http://localhost:80/api/v1/auth/callback
       OIDC_POST_LOGOUT_REDIRECT_URI: http://localhost:80/login
-      # ── Cookies relajadas (HTTP plano en dev)
+      # Cookies relajadas (HTTP plano en dev).
       SESSION_COOKIE_SECURE: "false"
       SESSION_COOKIE_SAMESITE: lax
-      # ── CORS local: el front servido por el router en :80 no lo necesita,
-      # pero cuando se corre `ng serve` directamente, el origen es :4200.
+      # CORS: el front via router en :80 no lo necesita, pero `ng serve` si
+      # (origen http://localhost:4200).
       CORS_ORIGIN: http://localhost
     volumes:
       - ../cfl-back/src:/app/src:ro
@@ -46,7 +49,7 @@ services:
     image: cfl-front-ng:dev
     container_name: cfl-front-dev
     build:
-      target: builder
+      target: deps
     read_only: false
     user: "0:0"
     command:
@@ -60,3 +63,9 @@ services:
           cpus: "2.0"
     volumes:
       - ../cfl-front-ng/src:/app/src:cached
+      - ../cfl-front-ng/angular.json:/app/angular.json:ro
+      - ../cfl-front-ng/tsconfig.json:/app/tsconfig.json:ro
+      - ../cfl-front-ng/tsconfig.app.json:/app/tsconfig.app.json:ro
+      - ../cfl-front-ng/tailwind.config.js:/app/tailwind.config.js:ro
+      - ../cfl-front-ng/postcss.config.js:/app/postcss.config.js:ro
+      - ../cfl-front-ng/package.json:/app/package.json:ro

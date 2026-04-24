@@ -1,16 +1,20 @@
 name: greenvic-cfl-${CFL_ENV:-prd}
 
 # =============================================================================
-# CFL — docker-compose base (prod-like).
-# Alineado con platform/docs/PLATFORM_INTEGRATION_SPEC.md §6.
+# CFL — docker-compose BASE.
 #
-# Consume las redes externas de platform:
-#   - platform_identity  (Keycloak, si la app lo usa)
+# Este archivo contiene lo que existe en ambos ambientes (dev y prd):
+#   - servicio `back` (cfl-back)
+#   - servicio `front-ng` (cfl-front-ng)
+#   - redes compartidas con platform
 #
-# El router de platform (NGINX :80) alcanza este stack por los aliases
-# `cfl-frontend` y `cfl-backend`.
+# Overrides especificos de cada ambiente viven en overlays:
+#   - docker-compose.dev.yml  → NODE_ENV=development, bind mounts + hot-reload,
+#                               OIDC URLs localhost, cookies relajadas.
+#   - docker-compose.prd.yml  → NODE_ENV=production, IP LAN, cookies secure.
 #
-# En dev, docker-compose.override.yml agrega bind mounts + hot-reload.
+# El Makefile combina base + overlay correspondiente a CFL_ENV.
+# No correr `docker compose -f docker-compose.yml` solo — siempre va con overlay.
 # =============================================================================
 
 x-logging: &default-logging
@@ -84,7 +88,6 @@ services:
     env_file:
       - ./.env
     environment:
-      NODE_ENV: "${NODE_ENV:-production}"
       PORT: "${PORT:-4000}"
     extra_hosts:
       - "host.docker.internal:host-gateway"

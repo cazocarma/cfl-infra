@@ -22,8 +22,11 @@ BACK_DIR       := $(abspath $(INFRA_DIR)/../cfl-back)
 FRONT_DIR      := $(abspath $(INFRA_DIR)/../cfl-front-ng)
 
 COMPOSE_BASE   := $(INFRA_DIR)/docker-compose.yml
-COMPOSE_DEV    := $(INFRA_DIR)/docker-compose.dev.yml
 ENV_FILE       := $(INFRA_DIR)/.env
+# CFL_ENV se lee desde .env (default prd si no esta). El overlay correspondiente
+# se monta automaticamente; fallar rapido si el archivo no existe.
+CFL_ENV        := $(shell [ -f $(ENV_FILE) ] && sed -n 's/^CFL_ENV=//p' $(ENV_FILE) | tail -n 1 | tr -d '\r')
+OVERLAY_COMPOSE := $(INFRA_DIR)/docker-compose.$(CFL_ENV).yml
 TAIL           ?= 200
 
 # ── Shell (Linux bash / Windows Git Bash) ──────────────────────────────────
@@ -45,20 +48,14 @@ endif
 SHELL := $(BASH)
 .SHELLFLAGS := -c
 
-# ── Carga .env al entorno de make (para CFL_ENV) ───────────────────────────
+# ── Carga .env al entorno de make (para que CFL_ENV, DB_*, etc. esten exportados) ──
 ifneq (,$(wildcard $(ENV_FILE)))
   include $(ENV_FILE)
   export
 endif
 
-CFL_ENV ?= prd
-
-# ── Compose handle: base + overlay dev si CFL_ENV=dev ──────────────────────
-COMPOSE_FILES := -f $(COMPOSE_BASE)
-ifeq ($(CFL_ENV),dev)
-  COMPOSE_FILES += -f $(COMPOSE_DEV)
-endif
-COMPOSE := docker compose --env-file $(ENV_FILE) $(COMPOSE_FILES)
+# ── Compose handle: base + overlay (docker-compose.$(CFL_ENV).yml) ─────────
+COMPOSE := docker compose -f $(COMPOSE_BASE) -f $(OVERLAY_COMPOSE) --env-file $(ENV_FILE)
 
 # =============================================================================
 # Help
@@ -84,15 +81,25 @@ setup-env:
 	  echo ".env creado con chmod 600 — completar valores <changeme>"; \
 	fi
 
-## doctor: valida .env + repos hermanos + red de platform + branch
+## doctor: valida .env + overlay + repos hermanos + red de platform + branch
 .PHONY: doctor
 doctor:
 	@if [ ! -f "$(ENV_FILE)" ]; then \
 	  echo "Falta $(ENV_FILE). Ejecuta 'make setup-env' y completa valores."; exit 1; \
 	fi
-	@case "$$CFL_ENV" in dev|prd) ;; *) \
-	  echo "CFL_ENV debe ser 'dev' o 'prd' (valor actual: '$$CFL_ENV')"; exit 1 ;; \
-	esac
+	@cfl_env="$$(sed -n 's/^CFL_ENV=//p' "$(ENV_FILE)" | tail -n 1 | tr -d '\r')"; \
+	if [ -z "$$cfl_env" ]; then \
+	  echo "ERROR: Falta CFL_ENV=dev|prd en $(ENV_FILE)"; exit 1; \
+	fi; \
+	case "$$cfl_env" in \
+	  dev|prd) ;; \
+	  *) echo "ERROR: CFL_ENV debe ser 'dev' o 'prd' (actual: $$cfl_env)"; exit 1 ;; \
+	esac; \
+	overlay="$(INFRA_DIR)/docker-compose.$$cfl_env.yml"; \
+	if [ ! -f "$$overlay" ]; then \
+	  echo "ERROR: Falta $$overlay. Los overlays dev/prd deben existir en cfl-infra/."; \
+	  exit 1; \
+	fi
 	@for d in "$(BACK_DIR)" "$(FRONT_DIR)"; do \
 	  if [ ! -d "$$d" ]; then echo "Falta repo hermano: $$d"; exit 1; fi; \
 	done
@@ -110,7 +117,7 @@ doctor:
 	    fi; \
 	  done; \
 	fi
-	@echo "OK — entorno listo para CFL_ENV=$$CFL_ENV"
+	@echo "OK — entorno listo para CFL_ENV=$(CFL_ENV) (overlay: docker-compose.$(CFL_ENV).yml)"
 
 # =============================================================================
 # Run
